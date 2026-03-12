@@ -1,0 +1,41 @@
+# --- SYSTEM & IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+venv/
+
+# --- JAVA ---
+target/
+*.class
+*.jar
+.gradle/
+
+# --- DATA SCIENCE & HFT ---
+# Ignore large data files and logs
+*.csv
+*.parquet
+*.pickle
+*.log
+*.dat
+*.bin
+# Ignore all Excel formats
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+
+# --- SECURITY (Global catch) ---
+# Never track private keys or credentials
+*.key
+*.pem
+/secrets/
+.env
+.env*
+**/.env*
+# Keep  example file visible
+!**/.env.example 
