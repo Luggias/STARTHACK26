@@ -1,40 +1,123 @@
-# 🏗️ Master Project Template (HFT & Data Science)
+# Cache Me If You Can 🏆
+**START Hack 2026** · 18–20 March 2026 · OLMA Messen, St. Gallen
 
-This is a reusable GitHub Template Repository for public projects such as high-performance trading systems and data science projects. It comes pre-configured with security defaults, AI agent instructions, and a hybrid Python/Java environment setup.
-
-> [!TIP]
-> **To use this template:** Click the green **"Use this template"** button above to create a new repository based on this structure.
+> Team: Constantin Salzer · Lukas Kapferer · Jamie Maier · Dorian Markies
 
 ---
 
-## 📂 Included Components
+## Tech Stack
 
-### 🛡️ Governance & Security (`.github/`)
-* **`CONTRIBUTING.md` & `CODE_OF_CONDUCT.md`**: Standard guidelines for community or team collaboration.
-* **`SECURITY.md`**: Procedures for reporting vulnerabilities (crucial for HFT).
-* **`PULL_REQUEST_TEMPLATE.md`**: Ensures consistent code reviews.
-
-### 🤖 AI-Agent Integration
-* **`AGENTS.md`**: Contains extensive personas and rules for AI assistants (like Cursor, Copilot, or ChatGPT). Use this to give your AI tools immediate context about your HFT logic and coding standards.
-
-### 📜 Licensing
-* **`LICENSE`**: Licensed under **Apache License 2.0**. This allows for commercial use, modification, and distribution while providing an explicit grant of patent rights.
-
-### ⚙️ Environment
-* **`.gitignore`**: Optimized for:
-    * **HFT**: Ignores binary tick data, logs, and database files.
-    * **Data Science**: Ignores Jupyter checkpoints, large datasets (CSV, Parquet), and models.
-    * **Security**: Automatically blocks `.env*`, `*.key`, and `*.pem` across all subdirectories.
+| Layer | Technology |
+|-------|-----------|
+| Backend / API | Python · FastAPI |
+| Frontend | Python · Streamlit |
+| Database | Supabase (PostgreSQL) |
+| AI | Anthropic Claude API · OpenAI API |
+| Deployment | Vercel (Frontend) · Railway (Backend) |
 
 ---
 
-## 🚀 Post-Creation Checklist
-After creating a new repository from this template, follow these steps:
+## Setup — Clone & Run in < 5 minutes
 
-1. **Brand the Project**: Update the main `# [Project Name]` in this README.
-2. **Customize Agents**: Adjust AGENTS.md if the new project requires specific domain knowledge (e.g., specific exchange APIs or ML models).
-3. **Update License**: Ensure the copyright notice in the Apache License header (if applicable) reflects the current year.
-4. **Setup Secrets**: 
-   ```bash
-   cp .env.example .env
-   # Add your exchange API keys to .env (ignored by git)
+### 1. Clone the repo
+```bash
+git clone https://github.com/Luggias/STARTHACK26.git
+cd STARTHACK26
+```
+
+### 2. Create Python environment
+```bash
+python -m venv venv
+
+# macOS / Linux
+source venv/bin/activate
+
+# Windows (PowerShell)
+.\venv\Scripts\activate
+```
+
+### 3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Set up environment variables
+```bash
+cp .env.example .env
+# Open .env and fill in your API keys
+```
+
+### 5. Run the backend
+```bash
+uvicorn backend.main:app --reload
+```
+API is now live at `http://localhost:8000` · Docs at `http://localhost:8000/docs`
+
+### 6. Run the frontend
+```bash
+streamlit run frontend/app.py
+```
+UI opens automatically at `http://localhost:8501`
+
+---
+
+## Project Structure
+
+```
+STARTHACK26/
+├── backend/
+│   └── main.py          # FastAPI app & API routes
+├── frontend/
+│   └── app.py           # UI (Streamlit or Next.js)
+├── db/
+│   └── database.py      # DB connection & models
+├── ai-exercises/        # Local API practice scripts (gitignored)
+├── .env.example         # API key template
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Team Roles
+
+| Person | Role |
+|--------|------|
+| Constantin | Lead Engineer · Backend · API Architecture |
+| Lukas | ML / Data Lead · Integration |
+| Jamie | Quant Analytics · Frontend · Data Visualization |
+| Dorian | Business Strategy · Pitch (Primary Speaker) |
+
+---
+
+## Required API Keys
+
+Add these to your `.env` file (get them before the hackathon!):
+
+```
+ANTHROPIC_API_KEY=...     # console.anthropic.com
+OPENAI_API_KEY=...        # platform.openai.com
+SUPABASE_URL=...          # supabase.com
+SUPABASE_KEY=...          # supabase.com
+```
+
+---
+
+## Deployment Checklist
+
+Use this during the hackathon to go from local to live in ~30 minutes:
+
+- [ ] Backend → **Railway**: connect GitHub repo, set env vars, deploy
+- [ ] Frontend → **Railway**: deploy Streamlit app alongside backend
+- [ ] Database → **Supabase**: create project, run schema, copy URL + key to env
+- [ ] Smoke test: hit all critical API endpoints, verify DB reads/writes
+- [ ] Record backup demo video with Loom (in case live demo crashes)
+
+---
+
+## Hackathon Quick Reference
+
+- **Submission deadline:** Friday 08:00 — submit by 07:30!
+- **Public voting window:** Friday 14:30–14:40 (10 minutes only!)
+- **Pitch format:** Problem (20s) → Live Demo (90s) → Business Impact (30s) → Team (10s)
+- **Code freeze:** T+30h — no new features after that, bugs & UX only

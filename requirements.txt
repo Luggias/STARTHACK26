@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+streamlit
+anthropic
+openai
+supabase
+python-dotenv
+requests
+pandas
