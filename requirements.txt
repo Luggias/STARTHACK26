@@ -7,3 +7,4 @@ supabase
 python-dotenv
 requests
 pandas
+python-multipart

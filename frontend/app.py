@@ -1,5 +1,7 @@
 import streamlit as st
 import requests
+import pandas as pd
+import json
 
 API_URL = "http://localhost:8000"
 
@@ -17,15 +19,19 @@ with st.sidebar:
 
 if page == "Home":
     st.header("Welcome")
-    st.write("Replace this with your project's main view.")
 
-    # Quick API health check
-    try:
-        res = requests.get(f"{API_URL}/")
-        if res.status_code == 200:
-            st.success("Backend connected ✓")
-    except Exception:
-        st.error("Backend not reachable — is uvicorn running?")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        try:
+            res = requests.get(f"{API_URL}/")
+            if res.status_code == 200:
+                st.success("Backend connected ✓")
+        except Exception:
+            st.error("Backend not reachable — is uvicorn running?")
+
+    with col2:
+        st.link_button("API Docs →", f"{API_URL}/docs")
 
 elif page == "AI Chat":
     st.header("AI Chat")
@@ -56,5 +62,33 @@ elif page == "AI Chat":
 
 elif page == "Data":
     st.header("Data")
-    st.write("Add your charts and data tables here.")
-    # Example: st.line_chart(your_dataframe)
+    
+    table = st.text_input("Table name", placeholder="e.g. users")
+
+    if st.button("Fetch") and table:
+        res = requests.get(f"{API_URL}/data/{table}")
+        if res.status_code == 200:
+            rows = res.json()
+            if rows:
+                df = pd.DataFrame(rows)
+                st.dataframe(df)
+                numeric_cols = df.select_dtypes("number").columns.tolist()
+                if numeric_cols:
+                    st.line_chart(df[numeric_cols])
+            else:
+                st.info("Table is empty.")
+        else:
+            st.error(res.json().get("detail", "Error fetching data"))
+
+    with st.expander("Add row"):
+        raw = st.text_area("JSON", placeholder='{"name": "Alice", "city": "Zurich"}')
+        if st.button("Insert") and table and raw:
+            try:
+                row = json.loads(raw)
+                res = requests.post(f"{API_URL}/data/{table}", json=row)
+                if res.status_code == 200:
+                    st.success(f"Inserted: {res.json()}")
+                else:
+                    st.error(res.json().get("detail", "Insert failed"))
+            except json.JSONDecodeError:
+                st.error("Invalid JSON")
