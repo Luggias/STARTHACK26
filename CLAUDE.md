@@ -10,20 +10,40 @@ Team: Constantin Salzer · Lukas Kapferer · Jamie Maier · Dorian Markies
 
 ## Tech Stack
 - **Backend:** Python · FastAPI (`backend/main.py`) — run with `uvicorn backend.main:app --reload`
-- **Frontend:** Python · Streamlit (`frontend/app.py`) — run with `streamlit run frontend/app.py`
+- **Frontend:** TypeScript · Next.js + Tailwind CSS + Framer Motion (`frontend/`) — run with `cd frontend && npm run dev`
+- **State Management:** Zustand
+- **Charts:** TradingView Lightweight Charts
 - **Database:** Supabase (PostgreSQL) — client in `db/database.py`
-- **AI:** Anthropic Claude API · OpenAI API
-- **Deployment:** Railway (backend + frontend) · Supabase (DB)
+- **AI:** Anthropic Claude API (educational insights)
+- **Real-time:** FastAPI WebSockets (battle mode)
+- **Deployment:** Vercel (frontend) · Railway (backend) · Supabase (DB)
 
 ## Project Structure
 ```
 STARTHACK26/
-├── backend/main.py      # FastAPI routes & Claude API calls
-├── frontend/app.py      # Streamlit UI
-├── db/database.py       # Supabase client (import db from here)
-├── .env                 # API keys — never commit!
-├── .env.example         # Key template
+├── backend/
+│   ├── main.py              # FastAPI routes, endpoints, WebSocket, CORS
+│   ├── data/
+│   │   └── historical.py    # Historical market data + simulate_portfolio()
+│   └── battle.py            # WebSocket battle room state machine
+├── frontend/                # Next.js App Router
+│   ├── src/app/             # Pages: /, /sandbox, /battle, /battle/[roomId]
+│   ├── src/components/      # Reusable: portfolio-builder, asset-card, charts, ai-insight
+│   ├── src/lib/             # api.ts, ws.ts, constants.ts, types.ts
+│   └── src/store/           # Zustand game store
+├── db/database.py           # Supabase client (import db from here)
+├── .env                     # API keys — never commit!
+├── .env.example             # Key template
 └── requirements.txt
+```
+
+## Game Flow
+```
+Landing Page → Sandbox Mode → Battle Mode
+     |              |              |
+  Username    Learn assets,   Real-time 1v1,
+  entry       build & test    historical scenario,
+              portfolios      AI insight
 ```
 
 ## Environment Variables
@@ -31,6 +51,11 @@ All keys live in `.env` (see `.env.example`):
 - `ANTHROPIC_API_KEY` — console.anthropic.com
 - `OPENAI_API_KEY` — platform.openai.com
 - `SUPABASE_URL` / `SUPABASE_KEY` — supabase.com → project settings → API
+- `FRONTEND_URL` — for CORS (e.g., `http://localhost:3000` or Vercel URL)
+
+Frontend env vars live in `frontend/.env.local`:
+- `NEXT_PUBLIC_API_URL` — backend URL (e.g., `http://localhost:8000`)
+- `NEXT_PUBLIC_WS_URL` — WebSocket URL (e.g., `ws://localhost:8000`)
 
 ## Team Roles
 - **Constantin** — Lead Engineer · Backend · API Architecture

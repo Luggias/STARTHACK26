@@ -4,6 +4,12 @@ Thumbs.db
 .vscode/
 .idea/
 
+# --- NODE / NEXT.JS ---
+node_modules/
+.next/
+.vercel/
+out/
+
 # --- PYTHON ---
 __pycache__/
 *.py[cod]
