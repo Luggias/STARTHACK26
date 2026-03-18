@@ -1,6 +1,5 @@
 fastapi
-uvicorn
-streamlit
+uvicorn[standard]
 anthropic
 openai
 supabase
@@ -8,3 +7,4 @@ python-dotenv
 requests
 pandas
 python-multipart
+numpy
