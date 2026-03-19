@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch } from "@/lib/api";
+import { quickmatch, getBattle } from "@/lib/api";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -230,7 +230,7 @@ export default function SandboxPage() {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     botTimerRef.current = setTimeout(() => { if (!matchCancelled.current) setShowBotOption(true); }, 5000);
 
-    const playerId = "player-" + Math.random().toString(36).slice(2, 8);
+    const playerId = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
     const start = Date.now();
     let roomId: string | null = null;
 
@@ -260,8 +260,7 @@ export default function SandboxPage() {
           setMatchStatus("waiting");
         } else {
           // Poll: check if someone joined our room
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/battles/${roomId}`);
-          const data = await res.json();
+          const data = await getBattle(roomId);
           if (matchCancelled.current) return;
           if (data.player2) {
             router.push(`/battle/${roomId}`);

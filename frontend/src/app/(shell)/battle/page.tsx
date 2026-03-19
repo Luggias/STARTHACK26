@@ -17,8 +17,9 @@ export default function BattleLobbyPage() {
   const [joiningPrivate, setJoiningPrivate] = useState(false);
   const [error, setError]           = useState("");
 
-  const playerId = user?.id ?? "guest-" + Math.random().toString(36).slice(2, 8);
-  const username = user?.username ?? "Guest";
+  const playerName = useGameStore((s) => s.playerName);
+  const playerId = user?.id ?? "guest-" + (playerName || "guest").toLowerCase().replace(/\s+/g, "-");
+  const username = user?.username ?? playerName ?? "Guest";
 
   async function handleFindMatch() {
     setStatus("searching"); setError("");

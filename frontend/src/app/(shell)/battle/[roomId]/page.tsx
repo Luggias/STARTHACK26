@@ -18,12 +18,17 @@ export default function BattleRoomPage() {
   const router   = useRouter();
   const roomId   = params.roomId as string;
 
-  const user     = useGameStore((s) => s.user);
+  const user       = useGameStore((s) => s.user);
+  const playerName = useGameStore((s) => s.playerName);
   const allocation = useGameStore((s) => s.allocation);
   const setAssetAllocation = useGameStore((s) => s.setAssetAllocation);
   const resetAllocation    = useGameStore((s) => s.resetAllocation);
 
-  const player = user ? { id: user.id, username: user.username } : null;
+  const player = user
+    ? { id: user.id, username: user.username }
+    : playerName
+      ? { id: "guest-" + playerName.toLowerCase().replace(/\s+/g, "-"), username: playerName }
+      : null;
 
   const [phase, setPhase]             = useState<BattlePhase>("waiting");
   const [opponent, setOpponent]       = useState("");
