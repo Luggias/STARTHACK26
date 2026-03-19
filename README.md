@@ -8,6 +8,10 @@ A gamified financial education platform where players learn investing by buildin
 
 ---
 
+[**Our Case Description**](https://github.com/adriank71/PostFinance-START-Hack-2026)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
