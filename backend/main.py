@@ -14,7 +14,7 @@ import anthropic
 import time
 import uuid
 
-from db.database import create, read, update, delete, upsert
+from .db.database import create, read, update, delete, upsert
 from .data.historical import (
     ASSET_CLASSES,
     SCENARIOS,
