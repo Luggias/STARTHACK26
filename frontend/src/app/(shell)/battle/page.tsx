@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useGameStore } from "@/store/game-store";
-import { createBattle, findOpenBattle, createPrivateBattle, joinByInvite } from "@/lib/api";
+import { quickmatch, createPrivateBattle, joinByInvite } from "@/lib/api";
 
 type Status = "idle" | "searching" | "creating";
 
@@ -23,11 +23,8 @@ export default function BattleLobbyPage() {
   async function handleFindMatch() {
     setStatus("searching"); setError("");
     try {
-      const { room } = await findOpenBattle();
-      if (room) { router.push(`/battle/${room.room_id}`); return; }
-      setStatus("creating");
-      const b = await createBattle(playerId, username);
-      router.push(`/battle/${b.room_id}`);
+      const result = await quickmatch(playerId, username);
+      router.push(`/battle/${result.room_id}`);
     } catch {
       setError("Could not reach server."); setStatus("idle");
     }

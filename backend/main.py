@@ -23,6 +23,7 @@ from data.historical import (
     simulate_portfolio,
 )
 from battle import (
+    Player,
     create_room,
     find_open_room,
     get_room,
@@ -619,6 +620,29 @@ class BattleCreate(BaseModel):
 def create_battle(req: BattleCreate):
     room = create_room(req.player_id, req.username)
     return {"room_id": room.room_id, "status": room.status.value}
+
+
+@app.post("/battles/quickmatch")
+def quickmatch(req: BattleCreate):
+    """Atomically join an open room or create a new one."""
+    room = find_open_room()
+    if room and room.player1 and room.player1.player_id != req.player_id:
+        # Join existing room as player2
+        room.player2 = Player(player_id=req.player_id, username=req.username)
+        return {
+            "room_id": room.room_id,
+            "status": room.status.value,
+            "joined": True,
+            "opponent": room.player1.username,
+        }
+    # No open room — create a new one
+    new_room = create_room(req.player_id, req.username)
+    return {
+        "room_id": new_room.room_id,
+        "status": new_room.status.value,
+        "joined": False,
+        "opponent": None,
+    }
 
 
 @app.get("/battles/open")

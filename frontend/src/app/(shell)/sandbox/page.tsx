@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { findOpenBattle, createBattle } from "@/lib/api";
+import { quickmatch } from "@/lib/api";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -217,32 +217,35 @@ export default function SandboxPage() {
   const [matchmaking, setMatchmaking] = useState<Strategy | null>(null);
   const [matchStatus, setMatchStatus] = useState<"searching" | "waiting" | "not_found">("searching");
   const [matchTimer, setMatchTimer]   = useState(15);
+  const [showBotOption, setShowBotOption] = useState(false);
   const matchCancelled = useRef(false);
+  const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
     setMatchStatus("searching");
     setMatchTimer(15);
+    setShowBotOption(false);
     matchCancelled.current = false;
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    botTimerRef.current = setTimeout(() => { if (!matchCancelled.current) setShowBotOption(true); }, 5000);
 
     const playerId = "player-" + Math.random().toString(36).slice(2, 8);
 
     try {
-      // Check for an open room first
-      const { room } = await findOpenBattle();
+      // Atomically join an open room or create a new one
+      const result = await quickmatch(playerId, playerName);
       if (matchCancelled.current) return;
-      if (room) {
-        router.push(`/battle/${room.room_id}`);
+
+      if (result.joined) {
+        // Matched immediately — go to battle room
+        router.push(`/battle/${result.room_id}`);
         return;
       }
 
-      // No open room — create one and wait
+      // Created a new room — wait for someone to join
       setMatchStatus("waiting");
-      const created = await createBattle(playerId, playerName);
-      if (matchCancelled.current) return;
-
-      // Poll for a second player joining
-      const roomId = created.room_id;
+      const roomId = result.room_id;
       const start = Date.now();
       const poll = async () => {
         if (matchCancelled.current) return;
@@ -274,6 +277,7 @@ export default function SandboxPage() {
 
   function cancelMatchmaking() {
     matchCancelled.current = true;
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
     setMatchmaking(null);
   }
 
@@ -503,13 +507,20 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                   <p className="mb-8 font-mono text-sm md:text-base text-white/40">
                     No opponents available right now. Fight the A.I. instead?
                   </p>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                </>
+              )}
+
+              <AnimatePresence>
+                {showBotOption && (
+                  <motion.button
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                     onClick={fightBot}
                     className="mb-3 w-full rounded-xl border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20">
                     ⚔ FIGHT A.I. BOT
                   </motion.button>
-                </>
-              )}
+                )}
+              </AnimatePresence>
 
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 onClick={cancelMatchmaking}

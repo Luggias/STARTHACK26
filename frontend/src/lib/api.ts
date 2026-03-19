@@ -225,6 +225,16 @@ export async function findOpenBattle(): Promise<{
   return fetchJson("/battles/open");
 }
 
+export async function quickmatch(
+  playerId: string,
+  username: string,
+): Promise<{ room_id: string; status: string; joined: boolean; opponent: string | null }> {
+  return fetchJson("/battles/quickmatch", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, username }),
+  });
+}
+
 export async function createPrivateBattle(
   playerId: string,
   username: string,
