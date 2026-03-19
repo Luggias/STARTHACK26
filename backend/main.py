@@ -15,14 +15,14 @@ import time
 import uuid
 
 from db.database import create, read, update, delete, upsert
-from backend.data.historical import (
+from .data.historical import (
     ASSET_CLASSES,
     SCENARIOS,
     get_scenario_list,
     get_scenario_detail,
     simulate_portfolio,
 )
-from backend.battle import (
+from .battle import (
     create_room,
     find_open_room,
     get_room,
@@ -31,14 +31,14 @@ from backend.battle import (
     create_private_room,
     get_room_by_invite,
 )
-from backend.auth import (
+from .auth import (
     hash_password,
     verify_password,
     create_jwt,
     get_current_user,
 )
-from backend.ticker import fetch_ticker_prices
-from backend.data.gbm import simulate_gbm, simulate_montecarlo
+from .ticker import fetch_ticker_prices
+from .data.gbm import simulate_gbm, simulate_montecarlo
 
 # Warn about missing env vars but don't crash — DB endpoints will fail gracefully
 for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
