@@ -49,7 +49,6 @@ Landing Page → Sandbox Mode → Battle Mode
 ## Environment Variables
 All keys live in `.env` (see `.env.example`):
 - `ANTHROPIC_API_KEY` — console.anthropic.com
-- `OPENAI_API_KEY` — platform.openai.com
 - `SUPABASE_URL` / `SUPABASE_KEY` — supabase.com → project settings → API
 - `FRONTEND_URL` — for CORS (e.g., `http://localhost:3000` or Vercel URL)
 

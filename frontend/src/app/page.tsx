@@ -332,21 +332,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Progress dots */}
-      <div className="absolute bottom-8 flex gap-2">
-        {SCENES.map((s, i) => (
-          <div
-            key={s.id}
-            className={`h-1.5 rounded-full transition-all duration-500 ${
-              i === sceneIndex
-                ? "w-6 bg-brand-blue"
-                : i < sceneIndex
-                  ? "w-1.5 bg-slate-600"
-                  : "w-1.5 bg-surface-lighter"
-            }`}
-          />
-        ))}
-      </div>
     </main>
   );
 }
