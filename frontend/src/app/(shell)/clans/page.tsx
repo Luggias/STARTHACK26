@@ -5,140 +5,117 @@ import { motion } from "framer-motion";
 import { useGameStore } from "@/store/game-store";
 import { createClan, joinClan, getClanLeaderboard } from "@/lib/api";
 import type { Clan, LeaderboardEntry } from "@/lib/types";
-import ClanCard from "@/components/clan-card";
 
 export default function ClansPage() {
   const user = useGameStore((s) => s.user);
-  const [clanName, setClanName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [currentClan, setCurrentClan] = useState<Clan | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [clanName, setClanName]         = useState("");
+  const [joinCode, setJoinCode]         = useState("");
+  const [currentClan, setCurrentClan]   = useState<Clan | null>(null);
+  const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
+  const [error, setError]               = useState("");
+  const [loading, setLoading]           = useState(false);
 
   useEffect(() => {
-    if (currentClan) {
-      getClanLeaderboard(currentClan.id)
-        .then((d) => setLeaderboard(d.leaderboard))
-        .catch(() => {});
-    }
+    if (currentClan) getClanLeaderboard(currentClan.id).then((d) => setLeaderboard(d.leaderboard)).catch(() => {});
   }, [currentClan]);
 
-  async function handleCreateClan() {
+  async function handleCreate() {
     if (!clanName.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      const { clan } = await createClan(clanName.trim());
-      setCurrentClan(clan);
-      setClanName("");
-    } catch (e) {
-      setError("Failed to create clan. Try a different name.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError("");
+    try { const { clan } = await createClan(clanName.trim()); setCurrentClan(clan); setClanName(""); }
+    catch { setError("Name taken or creation failed."); }
+    finally { setLoading(false); }
   }
 
-  async function handleJoinClan() {
+  async function handleJoin() {
     if (!joinCode.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      const { clan } = await joinClan(joinCode.trim().toUpperCase());
-      setCurrentClan(clan);
-      setJoinCode("");
-    } catch {
-      setError("Invalid join code");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError("");
+    try { const { clan } = await joinClan(joinCode.trim().toUpperCase()); setCurrentClan(clan); setJoinCode(""); }
+    catch { setError("Invalid code."); }
+    finally { setLoading(false); }
   }
 
   return (
-    <div className="min-h-screen p-6 pt-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Clans</h1>
-        <p className="text-sm text-slate-500 mt-1">Compete with your squad</p>
-      </div>
+    <div className="min-h-screen px-6 py-10">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="text-headline text-white">Clans</h1>
+        <p className="mt-1 text-sm text-white/35">Squad up and compete on the leaderboard</p>
+      </motion.div>
 
       {!currentClan ? (
-        <div className="grid gap-6 lg:grid-cols-2 max-w-2xl">
-          {/* Create */}
-          <div className="rounded-xl border border-white/5 bg-[#0f0f1a] p-6">
-            <h2 className="text-sm font-semibold text-slate-300 mb-4">Create a Clan</h2>
+        <div className="mt-10 grid gap-4 max-w-2xl sm:grid-cols-2">
+          <div className="glass rounded-2xl p-6">
+            <p className="mb-4 text-sm font-semibold text-white">Create a clan</p>
             <input
-              type="text"
-              placeholder="Clan name..."
-              value={clanName}
-              onChange={(e) => setClanName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateClan()}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/30 mb-3"
-              maxLength={30}
+              value={clanName} onChange={(e) => setClanName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="Clan name…" maxLength={30}
+              className="mb-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-white/15"
             />
             <button
-              onClick={handleCreateClan}
-              disabled={loading || !clanName.trim()}
-              className="w-full rounded-xl bg-[#00d4ff]/10 border border-[#00d4ff]/20 py-2.5 text-sm font-bold text-[#00d4ff] hover:bg-[#00d4ff]/20 disabled:opacity-40 transition-all"
+              onClick={handleCreate} disabled={loading || !clanName.trim()}
+              className="w-full rounded-full bg-[#0071e3] py-3 text-sm font-semibold text-white hover:bg-[#0077ed] disabled:opacity-30 transition-all"
             >
-              {loading ? "Creating..." : "Create Clan"}
+              {loading ? "Creating…" : "Create"}
             </button>
           </div>
 
-          {/* Join */}
-          <div className="rounded-xl border border-white/5 bg-[#0f0f1a] p-6">
-            <h2 className="text-sm font-semibold text-slate-300 mb-4">Join a Clan</h2>
+          <div className="glass rounded-2xl p-6">
+            <p className="mb-4 text-sm font-semibold text-white">Join a clan</p>
             <input
-              type="text"
-              placeholder="Join code..."
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === "Enter" && handleJoinClan()}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/30 font-mono-data mb-3"
-              maxLength={12}
+              value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+              placeholder="Join code…" maxLength={12}
+              className="mb-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-mono-data text-white placeholder-white/20 outline-none focus:border-white/15"
             />
             <button
-              onClick={handleJoinClan}
-              disabled={loading || !joinCode.trim()}
-              className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/10 disabled:opacity-40 transition-all"
+              onClick={handleJoin} disabled={loading || !joinCode.trim()}
+              className="w-full rounded-full border border-white/[0.1] py-3 text-sm font-semibold text-white/60 hover:bg-white/[0.04] hover:text-white disabled:opacity-30 transition-all"
             >
-              {loading ? "Joining..." : "Join Clan"}
+              {loading ? "Joining…" : "Join"}
             </button>
           </div>
 
-          {error && <p className="col-span-2 text-sm text-red-400">{error}</p>}
+          {error && <p className="col-span-2 text-sm text-[#ff453a]">{error}</p>}
         </div>
       ) : (
-        <div className="max-w-2xl space-y-6">
-          <ClanCard clan={currentClan} memberCount={leaderboard.length} isOwn />
+        <div className="mt-10 max-w-lg space-y-5">
+          {/* Clan header */}
+          <div className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-lg font-bold text-white">{currentClan.name}</p>
+                <p className="text-xs text-white/30 mt-0.5">{leaderboard.length} member{leaderboard.length !== 1 ? "s" : ""}</p>
+              </div>
+              <span className="font-mono-data text-xs text-white/30 bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-1.5">
+                {currentClan.join_code}
+              </span>
+            </div>
+          </div>
 
           {/* Leaderboard */}
-          <div className="rounded-xl border border-white/5 bg-[#0f0f1a] p-6">
-            <p className="text-xs uppercase tracking-wider text-slate-600 mb-4">Clan Leaderboard</p>
+          <div className="glass rounded-2xl p-6">
+            <p className="mb-4 text-xs font-medium uppercase tracking-wider text-white/30">Leaderboard</p>
             {leaderboard.length === 0 ? (
-              <p className="text-sm text-slate-600">No data yet. Play some battles!</p>
+              <p className="text-sm text-white/25">No data yet. Play some battles!</p>
             ) : (
               <div className="space-y-2">
-                {leaderboard.map((entry, i) => (
-                  <div key={entry.user_id} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono-data text-xs text-slate-600 w-4">{i + 1}</span>
-                      <span className="text-sm font-semibold text-white">{entry.username}</span>
-                      {entry.user_id === user?.id && (
-                        <span className="rounded-full bg-[#00d4ff]/10 border border-[#00d4ff]/20 px-2 py-0.5 text-[10px] text-[#00d4ff]">You</span>
-                      )}
-                    </div>
-                    <span className="font-mono-data text-sm text-[#00d4ff]">{entry.invest_iq} IQ</span>
+                {leaderboard.map((e, i) => (
+                  <div key={e.user_id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/[0.04]">
+                    <span className="font-mono-data w-5 text-xs text-white/25">{i + 1}</span>
+                    <span className="flex-1 text-sm font-medium text-white">{e.username}</span>
+                    {e.user_id === user?.id && (
+                      <span className="rounded-full bg-[#0071e3]/10 px-2 py-0.5 text-[10px] font-semibold text-[#2997ff]">You</span>
+                    )}
+                    <span className="font-mono-data text-sm text-[#2997ff]">{e.invest_iq}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <button
-            onClick={() => setCurrentClan(null)}
-            className="text-sm text-slate-600 hover:text-slate-400 transition-colors"
-          >
-            ← Leave / switch clan
+          <button onClick={() => setCurrentClan(null)} className="text-xs text-white/20 hover:text-white/50 transition-colors">
+            ← Leave clan
           </button>
         </div>
       )}

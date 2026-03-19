@@ -8,21 +8,18 @@ import TickerBar from "@/components/ticker-bar";
 
 export default function ShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const token = useGameStore((s) => s.token);
+  const token  = useGameStore((s) => s.token);
 
   useEffect(() => {
-    if (!token) {
-      router.replace("/");
-    }
+    if (!token) router.replace("/");
   }, [token, router]);
 
   if (!token) return null;
 
   return (
-    <div className="bg-grid min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-black">
       <Sidebar />
-      {/* Main content — offset for sidebar + ticker bar */}
-      <main className="ml-16 min-h-screen pb-8 md:ml-56">
+      <main className="ml-[60px] min-h-screen pb-7 md:ml-[220px]">
         {children}
       </main>
       <TickerBar />

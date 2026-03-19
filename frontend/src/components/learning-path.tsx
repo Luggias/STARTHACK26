@@ -5,88 +5,88 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ASSET_INFO, ASSET_CHECKPOINT_LABELS } from "@/lib/constants";
 import type { AssetKey } from "@/lib/constants";
 
-const CHECKPOINTS: AssetKey[] = ["stocks", "bonds", "gold", "cash", "crypto"];
+const STEPS: AssetKey[] = ["stocks", "bonds", "gold", "cash", "crypto"];
 
-interface LearningPathProps {
-  unlockedAssets: string[];
-}
+const RISK_LABEL = ["", "Very Low", "Low", "Medium", "High", "Very High"];
 
-export default function LearningPath({ unlockedAssets }: LearningPathProps) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+export default function LearningPath({ unlockedAssets }: { unlockedAssets: string[] }) {
+  const [open, setOpen] = useState<string | null>(null);
 
   return (
-    <div className="relative flex flex-col gap-0">
-      {CHECKPOINTS.map((asset, idx) => {
+    <div className="space-y-1">
+      {STEPS.map((asset, i) => {
         const unlocked = unlockedAssets.includes(asset);
-        const info = ASSET_INFO[asset];
-        const label = ASSET_CHECKPOINT_LABELS[asset] ?? info.name;
-        const isExpanded = expanded === asset;
+        const info     = ASSET_INFO[asset];
+        const label    = ASSET_CHECKPOINT_LABELS[asset] ?? info.name;
+        const isOpen   = open === asset;
 
         return (
-          <div key={asset} className="relative flex items-start gap-4">
-            {/* Connector line */}
-            {idx < CHECKPOINTS.length - 1 && (
-              <div className="absolute left-5 top-10 bottom-0 w-px bg-white/5" style={{ height: "calc(100% - 0px)", top: "40px" }} />
-            )}
-
-            {/* Node */}
+          <div key={asset}>
             <button
-              onClick={() => unlocked && setExpanded(isExpanded ? null : asset)}
+              onClick={() => unlocked && setOpen(isOpen ? null : asset)}
               disabled={!unlocked}
-              className="relative z-10 flex-shrink-0"
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                unlocked
+                  ? "hover:bg-white/[0.04] cursor-pointer"
+                  : "cursor-not-allowed opacity-40"
+              } ${isOpen ? "bg-white/[0.06]" : ""}`}
             >
+              {/* Step number / icon */}
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-all ${
+                className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm ${
                   unlocked
-                    ? "border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] node-active cursor-pointer hover:bg-[#00d4ff]/20"
-                    : "border-white/10 bg-white/5 text-slate-600 cursor-not-allowed"
+                    ? "bg-[#0071e3]/20 text-[#2997ff] node-active"
+                    : "bg-white/[0.06] text-white/20"
                 }`}
               >
-                {unlocked ? info.icon : "🔒"}
+                {unlocked ? info.icon : <LockIcon />}
               </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{label}</p>
+                <p className="text-xs text-white/30">{RISK_LABEL[info.risk_level]} risk · {info.typical_return}</p>
+              </div>
+
+              {unlocked && (
+                <ChevronIcon
+                  className={`flex-shrink-0 text-white/30 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                />
+              )}
             </button>
 
-            {/* Label + panel */}
-            <div className="flex-1 pb-6">
-              <button
-                onClick={() => unlocked && setExpanded(isExpanded ? null : asset)}
-                disabled={!unlocked}
-                className="text-left"
-              >
-                <p className={`text-sm font-semibold ${unlocked ? "text-white" : "text-slate-600"}`}>
-                  {label}
-                </p>
-                <p className={`text-xs ${unlocked ? "text-slate-500" : "text-slate-700"}`}>
-                  {unlocked ? info.typical_return : "Complete previous to unlock"}
-                </p>
-              </button>
-
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-3 rounded-xl border border-[#00d4ff]/10 bg-[#00d4ff]/5 p-4">
-                      <p className="text-sm text-slate-300 leading-relaxed">{info.description}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <span className="text-xs text-[#00d4ff] font-mono-data">
-                          Risk Level: {info.risk_level}/5
-                        </span>
-                        <span className="text-slate-600">·</span>
-                        <span className="text-xs text-slate-400">{info.typical_return}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <AnimatePresence>
+              {isOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="mx-3 mb-2 rounded-xl bg-[#0071e3]/[0.07] border border-[#0071e3]/15 p-4">
+                    <p className="text-sm leading-relaxed text-white/60">{info.description}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         );
       })}
     </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+    </svg>
+  );
+}
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
   );
 }

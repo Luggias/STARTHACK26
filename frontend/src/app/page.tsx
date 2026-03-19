@@ -8,34 +8,29 @@ import { authRegister, authLogin } from "@/lib/api";
 import IntroScenes from "@/components/intro-scenes";
 import OnboardingDialog from "@/components/onboarding-dialog";
 
-type Mode = "auth" | "intro" | "onboarding" | "guest-intro";
-type Tab = "register" | "login";
+type Screen = "hero" | "register" | "login" | "intro" | "guest-intro" | "onboarding";
 
-export default function HomePage() {
+export default function LandingPage() {
   const router = useRouter();
   const setUser = useGameStore((s) => s.setUser);
   const setToken = useGameStore((s) => s.setToken);
 
-  const [mode, setMode] = useState<Mode>("auth");
-  const [tab, setTab] = useState<Tab>("register");
+  const [screen, setScreen] = useState<Screen>("hero");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Register fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [age, setAge] = useState("");
   const [country, setCountry] = useState("");
   const [username, setUsername] = useState("");
-
-  // Login fields
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   async function handleRegister() {
     if (!fullName.trim() || !email.trim() || !password.trim()) {
-      setError("Please fill in name, email and password");
+      setError("Please fill in name, email and password.");
       return;
     }
     setLoading(true);
@@ -51,9 +46,9 @@ export default function HomePage() {
       });
       setToken(token);
       setUser(user);
-      setMode("intro");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Registration failed");
+      setScreen("intro");
+    } catch {
+      setError("Email already in use or registration failed.");
     } finally {
       setLoading(false);
     }
@@ -61,7 +56,7 @@ export default function HomePage() {
 
   async function handleLogin() {
     if (!loginEmail.trim() || !loginPassword.trim()) {
-      setError("Please enter email and password");
+      setError("Enter your email and password.");
       return;
     }
     setLoading(true);
@@ -72,15 +67,10 @@ export default function HomePage() {
       setUser(user);
       router.push("/home");
     } catch {
-      setError("Invalid email or password");
+      setError("Invalid email or password.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleSubmit() {
-    if (tab === "register") handleRegister();
-    else handleLogin();
   }
 
   function handleGuest() {
@@ -93,181 +83,259 @@ export default function HomePage() {
       invest_iq: 0,
       risk_profile: "unknown",
     });
-    setMode("guest-intro");
+    setScreen("guest-intro");
   }
 
-  if (mode === "intro") {
-    return <IntroScenes onComplete={() => setMode("onboarding")} />;
-  }
-  if (mode === "guest-intro") {
-    return <IntroScenes onComplete={() => router.push("/home")} />;
-  }
-  if (mode === "onboarding") {
+  if (screen === "intro") return <IntroScenes onComplete={() => setScreen("onboarding")} />;
+  if (screen === "guest-intro") return <IntroScenes onComplete={() => router.push("/home")} />;
+  if (screen === "onboarding") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#0a0a0f]">
-        <OnboardingDialog username={username || email.split("@")[0]} onComplete={() => router.push("/home")} />
-      </main>
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <OnboardingDialog
+          username={username || email.split("@")[0]}
+          onComplete={() => router.push("/home")}
+        />
+      </div>
     );
   }
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#0a0a0f] px-4">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#00d4ff]/8 blur-3xl" />
-        <div className="absolute left-1/2 top-2/3 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7c3aed]/8 blur-3xl" />
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      {/* Radial gradient backdrop */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2"
+          style={{
+            width: "140%",
+            height: "60vh",
+            background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,113,227,0.18) 0%, transparent 70%)",
+          }}
+        />
       </div>
 
-      <motion.div
-        className="relative z-10 w-full max-w-sm"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", damping: 22, stiffness: 260 }}
-      >
-        {/* Brand */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-black tracking-tight">
-            Cache{" "}
-            <span className="bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] bg-clip-text text-transparent">
-              Me If You Can
-            </span>
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Learn investing by competing. No real money — just real knowledge.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-white/8 bg-[#0f0f1a] p-8 shadow-2xl">
-          {/* Tab toggle */}
-          <div className="mb-6 flex rounded-xl bg-slate-900/60 p-1">
-            {(["register", "login"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); setError(""); }}
-                className="relative flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors"
-                style={{ color: tab === t ? "#fff" : "#475569" }}
-              >
-                {tab === t && (
-                  <motion.div
-                    layoutId="tab-pill"
-                    className="absolute inset-0 rounded-lg bg-gradient-to-r from-[#00d4ff]/20 to-[#7c3aed]/20 border border-[#00d4ff]/20"
-                    transition={{ type: "spring", damping: 22, stiffness: 300 }}
-                  />
-                )}
-                <span className="relative">{t === "register" ? "New Player" : "Login"}</span>
-              </button>
-            ))}
-          </div>
-
-          {tab === "register" ? (
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Full name *"
-                value={fullName}
-                onChange={(e) => { setFullName(e.target.value); setError(""); }}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 focus:ring-1 focus:ring-[#00d4ff]/20 transition-all"
-              />
-              <input
-                type="email"
-                placeholder="Email *"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 focus:ring-1 focus:ring-[#00d4ff]/20 transition-all"
-              />
-              <input
-                type="password"
-                placeholder="Password *"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 focus:ring-1 focus:ring-[#00d4ff]/20 transition-all"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  placeholder="Age"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  className="rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 transition-all"
-                  min={10} max={120}
-                />
-                <input
-                  type="text"
-                  placeholder="Country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 transition-all"
-                />
-              </div>
-              <input
-                type="text"
-                placeholder="Username (optional)"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.slice(0, 20))}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 transition-all"
-              />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <input
-                type="email"
-                placeholder="Email"
-                value={loginEmail}
-                onChange={(e) => { setLoginEmail(e.target.value); setError(""); }}
-                autoFocus
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 focus:ring-1 focus:ring-[#00d4ff]/20 transition-all"
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={loginPassword}
-                onChange={(e) => { setLoginPassword(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                className="w-full rounded-xl border border-white/10 bg-slate-800/40 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-[#00d4ff]/40 focus:ring-1 focus:ring-[#00d4ff]/20 transition-all"
-              />
-            </div>
-          )}
-
-          {error && (
-            <motion.p
-              className="mt-3 text-center text-xs text-red-400"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            >
-              {error}
-            </motion.p>
-          )}
-
-          <motion.button
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#00d4ff]/80 to-[#7c3aed]/80 py-3.5 font-bold shadow-lg disabled:opacity-50 text-sm"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? "Loading..." : tab === "register" ? "Create Account →" : "Enter Game →"}
-          </motion.button>
-        </div>
-
-        <div className="mt-4 flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/8" />
-          <span className="text-xs text-slate-600">or</span>
-          <div className="h-px flex-1 bg-white/8" />
-        </div>
-
-        <motion.button
-          className="mt-3 w-full rounded-xl border border-white/10 bg-transparent py-3 text-sm font-semibold text-slate-400 transition-colors hover:border-white/20 hover:text-slate-200"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleGuest}
+      {/* Nav */}
+      <nav className="relative z-10 flex items-center justify-between px-8 py-5">
+        <span className="text-sm font-semibold tracking-tight text-white/80">
+          Cache Me If You Can
+        </span>
+        <button
+          onClick={() => { setScreen("login"); setError(""); }}
+          className="rounded-full bg-white/10 px-5 py-2 text-sm font-medium text-white transition-all hover:bg-white/15"
         >
-          Continue as Guest
-        </motion.button>
+          Sign in
+        </button>
+      </nav>
 
-        <p className="mt-5 text-center text-xs text-slate-700">
-          START Hack 2026 · Cache Me If You Can
-        </p>
-      </motion.div>
-    </main>
+      <AnimatePresence mode="wait">
+        {screen === "hero" && (
+          <motion.div
+            key="hero"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.5 }}
+            className="relative z-10 flex flex-col items-center justify-center px-6 pt-20 pb-32 text-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#30d158]" />
+                <span className="text-xs font-medium text-white/60">START Hack 2026</span>
+              </div>
+
+              <h1 className="text-display mb-6 text-white">
+                Master<br />
+                <span
+                  style={{
+                    backgroundImage: "linear-gradient(135deg, #2997ff 0%, #bf5af2 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  the market.
+                </span>
+              </h1>
+
+              <p className="mx-auto mb-10 max-w-lg text-xl text-white/50" style={{ letterSpacing: "-0.01em" }}>
+                Build real investment portfolios, test them against history, and
+                compete with friends. No real money — just real knowledge.
+              </p>
+
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setScreen("register"); setError(""); }}
+                  className="rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-all hover:bg-white/90"
+                >
+                  Get started free
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleGuest}
+                  className="rounded-full border border-white/20 px-8 py-3.5 text-sm font-semibold text-white/70 transition-all hover:bg-white/5 hover:text-white"
+                >
+                  Continue as Guest
+                </motion.button>
+              </div>
+            </motion.div>
+
+            {/* Feature tiles */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.7 }}
+              className="mt-24 grid grid-cols-1 gap-4 sm:grid-cols-3 max-w-3xl w-full"
+            >
+              {[
+                { icon: "↗", title: "GBM Simulation", body: "20-year Monte Carlo projections powered by real market parameters." },
+                { icon: "⚔", title: "Live Battles", body: "Real-time 1v1 portfolio showdowns. Same scenario, different strategies." },
+                { icon: "✦", title: "AI Coach", body: "Discover your investing personality with Claude-powered analysis." },
+              ].map((f) => (
+                <div key={f.title} className="glass rounded-2xl p-6 text-left">
+                  <div className="mb-3 text-2xl text-[#2997ff]">{f.icon}</div>
+                  <p className="mb-1.5 text-base font-semibold text-white">{f.title}</p>
+                  <p className="text-sm leading-relaxed text-white/40">{f.body}</p>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {(screen === "register" || screen === "login") && (
+          <motion.div
+            key={screen}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ type: "spring", damping: 28, stiffness: 320 }}
+            className="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4"
+          >
+            <div className="w-full max-w-sm">
+              <h2 className="mb-1 text-center text-2xl font-bold text-white">
+                {screen === "register" ? "Create account" : "Welcome back"}
+              </h2>
+              <p className="mb-8 text-center text-sm text-white/40">
+                {screen === "register"
+                  ? "Start your investing journey today."
+                  : "Sign in to your account."}
+              </p>
+
+              <div className="glass-strong rounded-2xl p-8">
+                {screen === "register" ? (
+                  <div className="space-y-3">
+                    <Input placeholder="Full name" value={fullName} onChange={setFullName} />
+                    <Input placeholder="Email" type="email" value={email} onChange={setEmail} />
+                    <Input placeholder="Password" type="password" value={password} onChange={setPassword} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input placeholder="Age" type="number" value={age} onChange={setAge} />
+                      <Input placeholder="Country" value={country} onChange={setCountry} />
+                    </div>
+                    <Input placeholder="Username (optional)" value={username} onChange={setUsername} />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Input placeholder="Email" type="email" value={loginEmail} onChange={setLoginEmail} autoFocus />
+                    <Input
+                      placeholder="Password"
+                      type="password"
+                      value={loginPassword}
+                      onChange={setLoginPassword}
+                      onEnter={handleLogin}
+                    />
+                  </div>
+                )}
+
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 text-center text-sm text-[#ff453a]"
+                  >
+                    {error}
+                  </motion.p>
+                )}
+
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={screen === "register" ? handleRegister : handleLogin}
+                  disabled={loading}
+                  className="mt-5 w-full rounded-full bg-[#0071e3] py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#0077ed] disabled:opacity-40"
+                >
+                  {loading ? "Loading…" : screen === "register" ? "Create account" : "Sign in"}
+                </motion.button>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-white/[0.08]" />
+                  <span className="text-xs text-white/20">or</span>
+                  <div className="h-px flex-1 bg-white/[0.08]" />
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={handleGuest}
+                  className="mt-3 w-full rounded-full border border-white/10 py-3 text-sm font-medium text-white/40 transition-all hover:border-white/20 hover:text-white/60"
+                >
+                  Continue as Guest
+                </motion.button>
+
+                <p className="mt-4 text-center text-xs text-white/30">
+                  {screen === "register" ? (
+                    <>Already have an account?{" "}
+                      <button onClick={() => { setScreen("login"); setError(""); }} className="text-[#2997ff] hover:underline">Sign in</button>
+                    </>
+                  ) : (
+                    <>No account?{" "}
+                      <button onClick={() => { setScreen("register"); setError(""); }} className="text-[#2997ff] hover:underline">Create one</button>
+                    </>
+                  )}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setScreen("hero")}
+                className="mt-5 w-full text-center text-xs text-white/25 hover:text-white/50 transition-colors"
+              >
+                ← Back
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function Input({
+  placeholder,
+  value,
+  onChange,
+  type = "text",
+  autoFocus,
+  onEnter,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  autoFocus?: boolean;
+  onEnter?: () => void;
+}) {
+  return (
+    <input
+      type={type}
+      placeholder={placeholder}
+      value={value}
+      autoFocus={autoFocus}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
+      className="w-full rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-all focus:border-white/20 focus:bg-white/[0.08]"
+    />
   );
 }
