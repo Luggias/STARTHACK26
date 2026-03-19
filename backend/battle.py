@@ -15,7 +15,7 @@ from typing import Optional
 
 from fastapi import WebSocket
 
-from backend.data.historical import (
+from data.historical import (
     SCENARIOS,
     compute_battle_score,
     simulate_portfolio,
