@@ -4,7 +4,7 @@ import os
 import pathlib
 
 # Ensure .env is loaded from the project root regardless of cwd
-_project_root = pathlib.Path(__file__).resolve().parent.parent
+_project_root = pathlib.Path(__file__).resolve().parent.parent.parent
 load_dotenv(_project_root / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
