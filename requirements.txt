@@ -8,3 +8,7 @@ requests
 pandas
 python-multipart
 numpy
+yfinance
+bcrypt
+PyJWT
+scipy

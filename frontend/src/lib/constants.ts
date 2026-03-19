@@ -1,5 +1,13 @@
 import type { Allocation, AssetClass } from "./types";
 
+export const ASSET_CHECKPOINT_LABELS: Record<string, string> = {
+  stocks: "Equities",
+  bonds: "Fixed Income",
+  gold: "Commodities",
+  cash: "Money Market",
+  crypto: "Digital Assets",
+};
+
 export const DEFAULT_ALLOCATION: Allocation = {
   stocks: 20,
   bonds: 20,

@@ -63,6 +63,9 @@ class BattleRoom:
 # In-memory room storage (sufficient for hackathon scale)
 rooms: dict[str, BattleRoom] = {}
 
+# Private rooms indexed by invite code
+private_rooms: dict[str, BattleRoom] = {}
+
 # Building phase duration in seconds
 BUILDING_TIME_LIMIT = 60
 # Delay between simulation ticks in seconds
@@ -91,6 +94,25 @@ def find_open_room() -> Optional[BattleRoom]:
 def get_room(room_id: str) -> Optional[BattleRoom]:
     """Get a room by ID."""
     return rooms.get(room_id)
+
+
+def create_private_room(player_id: str, username: str) -> tuple[BattleRoom, str]:
+    """Create a private battle room and return (room, invite_code)."""
+    import secrets
+    invite_code = secrets.token_urlsafe(8).upper()
+    room_id = str(uuid.uuid4())[:8]
+    room = BattleRoom(
+        room_id=room_id,
+        player1=Player(player_id=player_id, username=username),
+    )
+    rooms[room_id] = room
+    private_rooms[invite_code] = room
+    return room, invite_code
+
+
+def get_room_by_invite(invite_code: str) -> Optional[BattleRoom]:
+    """Find a private room by its invite code."""
+    return private_rooms.get(invite_code)
 
 
 async def broadcast(room: BattleRoom, message: dict) -> None:

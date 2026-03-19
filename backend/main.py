@@ -6,13 +6,15 @@ import pathlib
 _project_root = pathlib.Path(__file__).resolve().parent.parent
 load_dotenv(_project_root / ".env")
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import anthropic
 import time
+import uuid
 
-from db.database import create, read, update, delete
+from db.database import create, read, update, delete, upsert
 from backend.data.historical import (
     ASSET_CLASSES,
     SCENARIOS,
@@ -26,7 +28,17 @@ from backend.battle import (
     get_room,
     handle_ws_message,
     handle_disconnect,
+    create_private_room,
+    get_room_by_invite,
 )
+from backend.auth import (
+    hash_password,
+    verify_password,
+    create_jwt,
+    get_current_user,
+)
+from backend.ticker import fetch_ticker_prices
+from backend.data.gbm import simulate_gbm, simulate_montecarlo
 
 # Warn about missing env vars but don't crash — DB endpoints will fail gracefully
 for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
@@ -34,7 +46,7 @@ for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
         import warnings
         warnings.warn(f"Missing env var: {key} — related features will be unavailable")
 
-app = FastAPI(title="Cache Me If You Can", version="0.1.0")
+app = FastAPI(title="Cache Me If You Can", version="2.0.0")
 
 # CORS: allow Next.js dev server + Vercel production
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -50,6 +62,76 @@ app.add_middleware(
 )
 
 ai_client = anthropic.Anthropic() if os.getenv("ANTHROPIC_API_KEY") else None
+
+# ---------------------------------------------------------------------------
+# In-memory fallback store (used when Supabase is not configured)
+# ---------------------------------------------------------------------------
+_HAS_DB = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
+
+# email -> user dict
+_mem_users: dict[str, dict] = {}
+# user_id -> list of strategies
+_mem_strategies: dict[str, list] = {}
+# user_id -> longterm portfolio
+_mem_portfolios: dict[str, dict] = {}
+
+
+def _db_create_user(row: dict) -> dict:
+    if _HAS_DB:
+        result = create("users", row)
+        return result.data[0] if result.data else row
+    uid = str(uuid.uuid4())
+    user = {**row, "id": uid}
+    _mem_users[row["email"]] = user
+    return user
+
+
+def _db_find_user_by_email(email: str) -> dict | None:
+    if _HAS_DB:
+        rows = read("users", filters={"email": email}, limit=1)
+        return rows[0] if rows else None
+    return _mem_users.get(email)
+
+
+def _db_find_user_by_id(uid: str) -> dict | None:
+    if _HAS_DB:
+        rows = read("users", filters={"id": uid}, limit=1)
+        return rows[0] if rows else None
+    for u in _mem_users.values():
+        if u.get("id") == uid:
+            return u
+    return None
+
+
+def _db_save_strategy(row: dict) -> dict:
+    if _HAS_DB:
+        result = create("sandbox_strategies", row)
+        return result.data[0] if result.data else row
+    uid = row["user_id"]
+    strat = {**row, "id": str(uuid.uuid4())}
+    _mem_strategies.setdefault(uid, []).append(strat)
+    return strat
+
+
+def _db_get_strategies(user_id: str) -> list:
+    if _HAS_DB:
+        return read("sandbox_strategies", filters={"user_id": user_id})
+    return _mem_strategies.get(user_id, [])
+
+
+def _db_upsert_portfolio(row: dict) -> dict:
+    if _HAS_DB:
+        result = upsert("longterm_portfolio", row, on_conflict="user_id")
+        return result.data[0] if result.data else row
+    _mem_portfolios[row["user_id"]] = row
+    return row
+
+
+def _db_get_portfolio(user_id: str) -> dict | None:
+    if _HAS_DB:
+        rows = read("longterm_portfolio", filters={"user_id": user_id}, limit=1)
+        return rows[0] if rows else None
+    return _mem_portfolios.get(user_id)
 
 
 @app.middleware("http")
@@ -71,6 +153,98 @@ def root():
 
 
 # ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+class RegisterRequest(BaseModel):
+    full_name: str
+    email: str
+    password: str
+    age: Optional[int] = None
+    country: Optional[str] = None
+    username: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/auth/register")
+def auth_register(req: RegisterRequest):
+    """Register a new user with email + password."""
+    username = req.username or req.email.split("@")[0]
+    # Check if email already exists
+    existing = _db_find_user_by_email(req.email)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    password_hash = hash_password(req.password)
+    try:
+        user = _db_create_user({
+            "username": username,
+            "full_name": req.full_name,
+            "email": req.email,
+            "password_hash": password_hash,
+            "age": req.age,
+            "country": req.country,
+            "invest_iq": 0,
+            "risk_profile": "unknown",
+        })
+        if _HAS_DB:
+            try:
+                create("leaderboard", {"user_id": user["id"]})
+            except Exception:
+                pass
+        token = create_jwt(user["id"], user["username"])
+        return {"token": token, "user": {k: v for k, v in user.items() if k != "password_hash"}}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/auth/login")
+def auth_login(req: LoginRequest):
+    """Login with email + password."""
+    try:
+        user = _db_find_user_by_email(req.email)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not verify_password(req.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        token = create_jwt(user["id"], user["username"])
+        return {"token": token, "user": {k: v for k, v in user.items() if k != "password_hash"}}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/auth/me")
+def auth_me(current_user: dict = Depends(get_current_user)):
+    """Get current authenticated user."""
+    try:
+        user = _db_find_user_by_id(current_user["id"])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {k: v for k, v in user.items() if k != "password_hash"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Ticker prices
+# ---------------------------------------------------------------------------
+
+@app.get("/ticker/prices")
+def get_ticker_prices():
+    """Get live or GBM-simulated ticker prices for the ticker bar."""
+    return {"prices": fetch_ticker_prices()}
+
+
+# ---------------------------------------------------------------------------
 # AI endpoints
 # ---------------------------------------------------------------------------
 
@@ -84,7 +258,7 @@ def chat(req: PromptRequest):
     if not ai_client:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
     response = ai_client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         system=req.system,
         messages=[{"role": "user", "content": req.message}],
@@ -132,7 +306,7 @@ def get_ai_insight(req: InsightRequest):
 
     try:
         response = ai_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=300,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
@@ -142,8 +316,76 @@ def get_ai_insight(req: InsightRequest):
         return {"insight": f"Great game! The key lesson here: {lesson}"}
 
 
+class CoachRequest(BaseModel):
+    strategies: list[dict]
+
+
+@app.post("/ai/coach")
+def ai_coach(req: CoachRequest, current_user: dict = Depends(get_current_user)):
+    """Analyse user's strategy history and return investing personality assessment."""
+    if not req.strategies:
+        return {
+            "personality_type": "Curious Explorer",
+            "strengths": ["Open to learning", "Starting the journey"],
+            "blindspots": ["Need more practice data"],
+            "risk_profile": "unknown",
+            "narrative": "You haven't saved enough strategies yet. Run a few simulations and come back!",
+        }
+
+    summary = "\n".join(
+        f"- Strategy '{s.get('name', 'unnamed')}': allocation={s.get('allocation', {})}, "
+        f"return={s.get('result', {}).get('total_return', 'N/A')}%, "
+        f"Sharpe={s.get('result', {}).get('sharpe_ratio', 'N/A')}"
+        for s in req.strategies[:10]
+    )
+
+    prompt = (
+        f"A user has made the following investment strategy choices:\n{summary}\n\n"
+        "Based on their allocation patterns and results, provide:\n"
+        "1. Their investing personality type (e.g. 'Aggressive Speculator', 'Cautious Balancer', 'Growth Hunter')\n"
+        "2. 2-3 strengths they demonstrate\n"
+        "3. 2-3 blindspots or risks to watch out for\n"
+        "4. Their inferred risk profile: conservative, moderate, or aggressive\n"
+        "5. A 2-3 sentence narrative summary\n\n"
+        "Respond in JSON format: {personality_type, strengths[], blindspots[], risk_profile, narrative}"
+    )
+
+    if not ai_client:
+        return {
+            "personality_type": "Balanced Builder",
+            "strengths": ["Diversified thinking", "Risk awareness"],
+            "blindspots": ["Could explore more asset classes"],
+            "risk_profile": "moderate",
+            "narrative": "You tend to build balanced portfolios. Keep experimenting to refine your style.",
+        }
+
+    try:
+        response = ai_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=500,
+            system="You are a financial personality assessor. Always respond with valid JSON only.",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        import json
+        text = response.content[0].text
+        # Extract JSON if wrapped in markdown
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text.strip())
+    except Exception:
+        return {
+            "personality_type": "Balanced Builder",
+            "strengths": ["Diversified thinking", "Risk awareness"],
+            "blindspots": ["Could explore more asset classes"],
+            "risk_profile": "moderate",
+            "narrative": "You tend to build balanced portfolios. Keep experimenting to refine your style.",
+        }
+
+
 # ---------------------------------------------------------------------------
-# Player registration
+# Player registration (legacy — kept for backward compat)
 # ---------------------------------------------------------------------------
 
 class PlayerCreate(BaseModel):
@@ -166,13 +408,11 @@ def register_player(req: PlayerCreate):
 
 @app.get("/scenarios")
 def list_scenarios():
-    """List all available historical scenarios (metadata only)."""
     return {"scenarios": get_scenario_list()}
 
 
 @app.get("/scenarios/{key}")
 def get_scenario(key: str):
-    """Get full scenario data including asset descriptions."""
     detail = get_scenario_detail(key)
     if not detail:
         raise HTTPException(status_code=404, detail=f"Scenario '{key}' not found")
@@ -181,7 +421,6 @@ def get_scenario(key: str):
 
 @app.get("/assets")
 def list_assets():
-    """Get all asset class definitions."""
     return {"assets": ASSET_CLASSES}
 
 
@@ -192,10 +431,8 @@ class SimulateRequest(BaseModel):
 
 @app.post("/simulate")
 def run_simulation(req: SimulateRequest):
-    """Simulate a portfolio through a historical scenario."""
     if req.scenario_key not in SCENARIOS:
         raise HTTPException(status_code=404, detail=f"Scenario '{req.scenario_key}' not found")
-
     try:
         result = simulate_portfolio(req.allocation, req.scenario_key)
         return result
@@ -204,7 +441,173 @@ def run_simulation(req: SimulateRequest):
 
 
 # ---------------------------------------------------------------------------
-# Battle rooms (REST endpoints for creation/discovery)
+# GBM simulation
+# ---------------------------------------------------------------------------
+
+class GBMRequest(BaseModel):
+    allocation: dict
+    years: int = 20
+    seed: Optional[int] = None
+    inject_events: bool = True
+
+
+@app.post("/simulate/gbm")
+def run_gbm(req: GBMRequest):
+    try:
+        return simulate_gbm(req.allocation, req.years, req.seed, req.inject_events)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class MonteCarloRequest(BaseModel):
+    allocation: dict
+    years: int = 20
+    n_paths: int = 200
+    seed: Optional[int] = None
+
+
+@app.post("/simulate/montecarlo")
+def run_montecarlo(req: MonteCarloRequest):
+    try:
+        return simulate_montecarlo(req.allocation, req.years, req.n_paths, req.seed)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Strategy management
+# ---------------------------------------------------------------------------
+
+class StrategySaveRequest(BaseModel):
+    name: str
+    allocation: dict
+    scenario_key: str
+    result: dict
+
+
+# Asset unlock progression
+ASSET_UNLOCK_ORDER = ["stocks", "bonds", "gold", "cash", "crypto"]
+
+
+@app.post("/strategies")
+def save_strategy(req: StrategySaveRequest, current_user: dict = Depends(get_current_user)):
+    """Save a sandbox strategy and determine next asset unlock."""
+    try:
+        row = {
+            "user_id": current_user["id"],
+            "name": req.name,
+            "allocation": req.allocation,
+            "scenario_key": req.scenario_key,
+            "result": req.result,
+        }
+        saved = _db_save_strategy(row)
+        all_strats = _db_get_strategies(current_user["id"])
+        count = len(all_strats)
+        unlocked_next = ASSET_UNLOCK_ORDER[min(count, len(ASSET_UNLOCK_ORDER) - 1)]
+        return {"strategy": saved, "unlocked_next": unlocked_next}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/strategies/me")
+def my_strategies(current_user: dict = Depends(get_current_user)):
+    try:
+        return {"strategies": _db_get_strategies(current_user["id"])}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/strategies/top3")
+def top3_strategies(current_user: dict = Depends(get_current_user)):
+    try:
+        strategies = _db_get_strategies(current_user["id"])
+        def get_return(s):
+            r = s.get("result", {})
+            return r.get("total_return", -999) if isinstance(r, dict) else -999
+        top3 = sorted(strategies, key=get_return, reverse=True)[:3]
+        return {"strategies": top3}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Long-term portfolio
+# ---------------------------------------------------------------------------
+
+class LongtermPortfolioRequest(BaseModel):
+    allocation: dict
+    initial_amount_chf: float = 10000.0
+
+
+@app.post("/portfolio/longterm")
+def init_longterm_portfolio(req: LongtermPortfolioRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        row = {
+            "user_id": current_user["id"],
+            "allocation": req.allocation,
+            "initial_amount_chf": req.initial_amount_chf,
+        }
+        saved = _db_upsert_portfolio(row)
+        return {"portfolio": saved}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/portfolio/longterm/me")
+def get_longterm_portfolio(current_user: dict = Depends(get_current_user)):
+    try:
+        portfolio = _db_get_portfolio(current_user["id"])
+        if not portfolio:
+            return {"portfolio": None}
+        # Compute current value via GBM from started_at to now
+        from datetime import datetime, timezone
+        started_at = portfolio.get("started_at")
+        if started_at:
+            try:
+                start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+                now = datetime.now(timezone.utc)
+                years_elapsed = max((now - start).days / 365.25, 0)
+                if years_elapsed > 0:
+                    sim = simulate_gbm(
+                        portfolio["allocation"],
+                        years=max(1, int(years_elapsed) + 1),
+                        inject_events=False,
+                    )
+                    # Take value at the months elapsed
+                    months_elapsed = int(years_elapsed * 12)
+                    idx = min(months_elapsed, len(sim["values"]) - 1)
+                    initial = float(portfolio.get("initial_amount_chf", 10000))
+                    scale = initial / 10000.0
+                    current_value = sim["values"][idx] * scale
+                    portfolio["current_value"] = round(current_value, 2)
+                    portfolio["current_return"] = round((current_value / initial - 1) * 100, 2)
+            except Exception:
+                portfolio["current_value"] = portfolio.get("initial_amount_chf", 10000)
+                portfolio["current_return"] = 0.0
+        return {"portfolio": portfolio}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/portfolio/longterm/history")
+def get_longterm_history(current_user: dict = Depends(get_current_user)):
+    try:
+        portfolio = _db_get_portfolio(current_user["id"])
+        if not portfolio:
+            return {"history": None}
+        initial = float(portfolio.get("initial_amount_chf", 10000))
+        scale = initial / 10000.0
+        sim = simulate_gbm(portfolio["allocation"], years=20, inject_events=False)
+        return {
+            "months": sim["months"],
+            "values": [round(v * scale, 2) for v in sim["values"]],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Battle rooms (REST)
 # ---------------------------------------------------------------------------
 
 class BattleCreate(BaseModel):
@@ -214,14 +617,12 @@ class BattleCreate(BaseModel):
 
 @app.post("/battles")
 def create_battle(req: BattleCreate):
-    """Create a new battle room."""
     room = create_room(req.player_id, req.username)
     return {"room_id": room.room_id, "status": room.status.value}
 
 
 @app.get("/battles/open")
 def find_open_battle():
-    """Find a waiting battle room to join."""
     room = find_open_room()
     if not room:
         return {"room": None}
@@ -233,9 +634,30 @@ def find_open_battle():
     }
 
 
+class PrivateBattleCreate(BaseModel):
+    player_id: str
+    username: str
+
+
+@app.post("/battles/private")
+def create_private_battle(req: PrivateBattleCreate):
+    room, invite_code = create_private_room(req.player_id, req.username)
+    return {"room_id": room.room_id, "invite_code": invite_code, "status": room.status.value}
+
+
+@app.get("/battles/invite/{code}")
+def get_battle_by_invite(code: str):
+    room = get_room_by_invite(code)
+    if not room:
+        raise HTTPException(status_code=404, detail="Invite code not found")
+    return {
+        "room_id": room.room_id,
+        "player1_username": room.player1.username if room.player1 else None,
+    }
+
+
 @app.get("/battles/{room_id}")
 def get_battle(room_id: str):
-    """Get battle room status and results."""
     room = get_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -254,15 +676,12 @@ def get_battle(room_id: str):
 
 @app.websocket("/ws/battle/{room_id}")
 async def battle_websocket(websocket: WebSocket, room_id: str):
-    """WebSocket endpoint for real-time battle communication."""
     await websocket.accept()
-
     room = get_room(room_id)
     if not room:
         await websocket.send_text('{"type":"error","message":"Room not found"}')
         await websocket.close()
         return
-
     try:
         while True:
             raw = await websocket.receive_text()
@@ -272,7 +691,104 @@ async def battle_websocket(websocket: WebSocket, room_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Generic CRUD (existing)
+# Clans
+# ---------------------------------------------------------------------------
+
+class ClanCreate(BaseModel):
+    name: str
+
+
+@app.post("/clans")
+def create_clan(req: ClanCreate, current_user: dict = Depends(get_current_user)):
+    import secrets
+    join_code = secrets.token_urlsafe(6).upper()
+    try:
+        result = create("clans", {
+            "name": req.name,
+            "join_code": join_code,
+            "created_by": current_user["id"],
+        })
+        clan = result.data[0] if result.data else None
+        if not clan:
+            raise HTTPException(status_code=400, detail="Failed to create clan")
+        # Creator joins automatically
+        create("clan_members", {"clan_id": clan["id"], "user_id": current_user["id"]})
+        return {"clan": clan}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class ClanJoin(BaseModel):
+    join_code: str
+
+
+@app.post("/clans/join")
+def join_clan(req: ClanJoin, current_user: dict = Depends(get_current_user)):
+    try:
+        clans = read("clans", filters={"join_code": req.join_code}, limit=1)
+        if not clans:
+            raise HTTPException(status_code=404, detail="Clan not found")
+        clan = clans[0]
+        try:
+            create("clan_members", {"clan_id": clan["id"], "user_id": current_user["id"]})
+        except Exception:
+            pass  # Already a member
+        return {"clan": clan}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/clans/{clan_id}")
+def get_clan(clan_id: str):
+    try:
+        clans = read("clans", filters={"id": clan_id}, limit=1)
+        if not clans:
+            raise HTTPException(status_code=404, detail="Clan not found")
+        members = read("clan_members", filters={"clan_id": clan_id})
+        return {"clan": clans[0], "members": members}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/clans/{clan_id}/leaderboard")
+def clan_leaderboard(clan_id: str):
+    try:
+        members = read("clan_members", filters={"clan_id": clan_id})
+        member_ids = [m["user_id"] for m in members]
+        rows = []
+        for uid in member_ids:
+            lb = read("leaderboard", filters={"user_id": uid}, limit=1)
+            users = read("users", filters={"id": uid}, limit=1)
+            if lb and users:
+                entry = {**lb[0], "username": users[0].get("username", "?")}
+                rows.append(entry)
+        rows.sort(key=lambda r: r.get("invest_iq", 0), reverse=True)
+        return {"leaderboard": rows}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/leaderboard")
+def global_leaderboard():
+    try:
+        lb = read("leaderboard")
+        enriched = []
+        for entry in lb:
+            users = read("users", filters={"id": entry["user_id"]}, limit=1)
+            if users:
+                enriched.append({**entry, "username": users[0].get("username", "?")})
+        enriched.sort(key=lambda r: r.get("invest_iq", 0), reverse=True)
+        return {"leaderboard": enriched[:50]}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Generic CRUD (legacy)
 # ---------------------------------------------------------------------------
 
 @app.get("/data/{table}")
@@ -310,7 +826,7 @@ def delete_row(table: str, id: str):
 
 
 # ---------------------------------------------------------------------------
-# File upload (existing)
+# File upload (legacy)
 # ---------------------------------------------------------------------------
 
 UPLOAD_DIR = "uploads"

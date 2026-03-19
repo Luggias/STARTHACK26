@@ -1,18 +1,42 @@
 import type {
   Allocation,
   BattleResult,
-  Player,
+  GBMResult,
+  LongtermPortfolio,
+  MonteCarloResult,
   ScenarioMeta,
   SimulationResult,
+  Strategy,
+  TickerPrice,
+  User,
+  Clan,
+  LeaderboardEntry,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem("cmiyc-game-store");
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return parsed?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string> ?? {}),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`API error ${res.status}: ${detail}`);
@@ -20,57 +44,171 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-/** Register a new player (username only). */
-export async function registerPlayer(username: string): Promise<Player> {
-  const data = await fetchJson<{ player: Player }>("/players", {
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export async function authRegister(data: {
+  full_name: string;
+  email: string;
+  password: string;
+  age?: number;
+  country?: string;
+  username?: string;
+}): Promise<{ token: string; user: User }> {
+  return fetchJson("/auth/register", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function authLogin(email: string, password: string): Promise<{ token: string; user: User }> {
+  return fetchJson("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export async function getMe(): Promise<User> {
+  return fetchJson("/auth/me");
+}
+
+// ---------------------------------------------------------------------------
+// Ticker
+// ---------------------------------------------------------------------------
+
+export async function getTickerPrices(): Promise<TickerPrice[]> {
+  const data = await fetchJson<{ prices: TickerPrice[] }>("/ticker/prices");
+  return data.prices;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy player (battle mode)
+// ---------------------------------------------------------------------------
+
+export async function registerPlayer(username: string): Promise<{ id: string; username: string }> {
+  const data = await fetchJson<{ player: { id: string; username: string } }>("/players", {
     method: "POST",
     body: JSON.stringify({ username }),
   });
   return data.player;
 }
 
-/** List all available historical scenarios. */
+// ---------------------------------------------------------------------------
+// Scenarios & simulation
+// ---------------------------------------------------------------------------
+
 export async function getScenarios(): Promise<ScenarioMeta[]> {
   const data = await fetchJson<{ scenarios: ScenarioMeta[] }>("/scenarios");
   return data.scenarios;
 }
 
-/** Run a portfolio simulation against a historical scenario. */
-export async function simulate(
-  allocation: Allocation,
-  scenarioKey: string,
-): Promise<SimulationResult> {
+export async function simulate(allocation: Allocation, scenarioKey: string): Promise<SimulationResult> {
   return fetchJson<SimulationResult>("/simulate", {
     method: "POST",
     body: JSON.stringify({ allocation, scenario_key: scenarioKey }),
   });
 }
 
-/** Get AI educational insight for a battle result. */
+export async function simulateGBM(
+  allocation: Allocation,
+  years = 20,
+  seed?: number,
+  injectEvents = true,
+): Promise<GBMResult> {
+  return fetchJson<GBMResult>("/simulate/gbm", {
+    method: "POST",
+    body: JSON.stringify({ allocation, years, seed, inject_events: injectEvents }),
+  });
+}
+
+export async function simulateMonteCarlo(
+  allocation: Allocation,
+  years = 20,
+  nPaths = 200,
+): Promise<MonteCarloResult> {
+  return fetchJson<MonteCarloResult>("/simulate/montecarlo", {
+    method: "POST",
+    body: JSON.stringify({ allocation, years, n_paths: nPaths }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Strategies
+// ---------------------------------------------------------------------------
+
+export async function saveStrategy(data: {
+  name: string;
+  allocation: Allocation;
+  scenario_key: string;
+  result: Partial<SimulationResult>;
+}): Promise<{ strategy: Strategy; unlocked_next: string }> {
+  return fetchJson("/strategies", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getMyStrategies(): Promise<Strategy[]> {
+  const data = await fetchJson<{ strategies: Strategy[] }>("/strategies/me");
+  return data.strategies;
+}
+
+export async function getTop3Strategies(): Promise<Strategy[]> {
+  const data = await fetchJson<{ strategies: Strategy[] }>("/strategies/top3");
+  return data.strategies;
+}
+
+// ---------------------------------------------------------------------------
+// Long-term portfolio
+// ---------------------------------------------------------------------------
+
+export async function initLongtermPortfolio(
+  allocation: Allocation,
+  initialAmountChf = 10000,
+): Promise<LongtermPortfolio> {
+  const data = await fetchJson<{ portfolio: LongtermPortfolio }>("/portfolio/longterm", {
+    method: "POST",
+    body: JSON.stringify({ allocation, initial_amount_chf: initialAmountChf }),
+  });
+  return data.portfolio;
+}
+
+export async function getLongtermPortfolio(): Promise<LongtermPortfolio | null> {
+  const data = await fetchJson<{ portfolio: LongtermPortfolio | null }>("/portfolio/longterm/me");
+  return data.portfolio;
+}
+
+export async function getLongtermHistory(): Promise<{ months: string[]; values: number[] } | null> {
+  const data = await fetchJson<{ history: { months: string[]; values: number[] } | null }>("/portfolio/longterm/history");
+  return data.history;
+}
+
+// ---------------------------------------------------------------------------
+// AI
+// ---------------------------------------------------------------------------
+
 export async function getAiInsight(
   portfolio1: Allocation,
   portfolio2: Allocation,
   scenarioKey: string,
-  result: {
-    p1_return: number;
-    p1_sharpe: number;
-    p2_return: number;
-    p2_sharpe: number;
-  },
+  result: { p1_return: number; p1_sharpe: number; p2_return: number; p2_sharpe: number },
 ): Promise<string> {
   const data = await fetchJson<{ insight: string }>("/ai/insight", {
     method: "POST",
-    body: JSON.stringify({
-      portfolio1,
-      portfolio2,
-      scenario_key: scenarioKey,
-      result,
-    }),
+    body: JSON.stringify({ portfolio1, portfolio2, scenario_key: scenarioKey, result }),
   });
   return data.insight;
 }
 
-/** Create a new battle room. */
+export async function getAiCoach(strategies: Strategy[]): Promise<{
+  personality_type: string;
+  strengths: string[];
+  blindspots: string[];
+  risk_profile: string;
+  narrative: string;
+}> {
+  return fetchJson("/ai/coach", {
+    method: "POST",
+    body: JSON.stringify({ strategies }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Battle
+// ---------------------------------------------------------------------------
+
 export async function createBattle(
   playerId: string,
   username: string,
@@ -81,14 +219,28 @@ export async function createBattle(
   });
 }
 
-/** Find an open battle room to join. */
 export async function findOpenBattle(): Promise<{
   room: { room_id: string; player1_username: string } | null;
 }> {
   return fetchJson("/battles/open");
 }
 
-/** Get battle room status. */
+export async function createPrivateBattle(
+  playerId: string,
+  username: string,
+): Promise<{ room_id: string; invite_code: string; status: string }> {
+  return fetchJson("/battles/private", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, username }),
+  });
+}
+
+export async function joinByInvite(
+  code: string,
+): Promise<{ room_id: string; player1_username: string }> {
+  return fetchJson(`/battles/invite/${code}`);
+}
+
 export async function getBattle(roomId: string) {
   return fetchJson<{
     room_id: string;
@@ -97,4 +249,28 @@ export async function getBattle(roomId: string) {
     player2: string | null;
     results: BattleResult | null;
   }>(`/battles/${roomId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Clans
+// ---------------------------------------------------------------------------
+
+export async function createClan(name: string): Promise<{ clan: Clan }> {
+  return fetchJson("/clans", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export async function joinClan(joinCode: string): Promise<{ clan: Clan }> {
+  return fetchJson("/clans/join", { method: "POST", body: JSON.stringify({ join_code: joinCode }) });
+}
+
+export async function getClan(clanId: string): Promise<{ clan: Clan; members: unknown[] }> {
+  return fetchJson(`/clans/${clanId}`);
+}
+
+export async function getClanLeaderboard(clanId: string): Promise<{ leaderboard: LeaderboardEntry[] }> {
+  return fetchJson(`/clans/${clanId}/leaderboard`);
+}
+
+export async function getLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[] }> {
+  return fetchJson("/leaderboard");
 }

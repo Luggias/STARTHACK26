@@ -52,3 +52,8 @@ def update(table: str, id, changes: dict):
 def delete(table: str, id) -> None:
     """DELETE row by id."""
     _get_db().table(table).delete().eq("id", id).execute()
+
+
+def upsert(table: str, row: dict, on_conflict: str = "id"):
+    """INSERT or UPDATE row on conflict. Returns the executed result."""
+    return _get_db().table(table).upsert(row, on_conflict=on_conflict).execute()

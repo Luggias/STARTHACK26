@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import { Space_Mono } from "next/font/google";
 import "./globals.css";
+
+const spaceMono = Space_Mono({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-space-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Cache Me If You Can",
@@ -13,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={spaceMono.variable}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

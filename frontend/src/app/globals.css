@@ -1,20 +1,70 @@
 @import "tailwindcss";
 
 @theme {
+  /* Legacy colours */
   --color-brand-blue: #3B82F6;
   --color-brand-green: #10B981;
   --color-brand-gold: #F59E0B;
   --color-brand-gray: #6B7280;
   --color-brand-purple: #8B5CF6;
-  --color-surface: #0F172A;
-  --color-surface-light: #1E293B;
-  --color-surface-lighter: #334155;
+  --color-surface: #0a0a0f;
+  --color-surface-light: #111118;
+  --color-surface-lighter: #1a1a28;
+
+  /* New design system */
+  --color-base: #0a0a0f;
+  --color-brand-cyan: #00d4ff;
+  --color-brand-violet: #7c3aed;
+  --color-brand-emerald: #22c55e;
+  --color-panel: #0f0f1a;
+  --color-border: rgba(255,255,255,0.06);
 }
 
 body {
-  background-color: var(--color-surface);
+  background-color: var(--color-base);
   color: #F8FAFC;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* Grid-line terminal background */
+.bg-grid {
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,212,255,0.03) 39px, rgba(0,212,255,0.03) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,212,255,0.03) 39px, rgba(0,212,255,0.03) 40px);
+}
+
+/* Neon glow effect */
+.glow-cyan {
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.4), 0 0 24px rgba(0, 212, 255, 0.2);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.6);
+}
+
+/* Monospace number display */
+.font-mono-data {
+  font-family: "Space Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Ticker scroll animation */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-scroll {
+  animation: ticker-scroll 30s linear infinite;
+}
+
+/* Glow pulse for learning path nodes */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(0, 212, 255, 0.4); }
+  50% { box-shadow: 0 0 18px rgba(0, 212, 255, 0.8), 0 0 32px rgba(0, 212, 255, 0.3); }
+}
+
+.node-active {
+  animation: glow-pulse 2s ease-in-out infinite;
 }
 
 /* Slider track styling */
@@ -33,7 +83,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--color-brand-blue);
+  background: var(--color-brand-cyan);
   cursor: pointer;
   transition: transform 0.15s ease;
 }
