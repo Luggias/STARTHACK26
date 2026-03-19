@@ -378,20 +378,20 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <motion.div className="fixed inset-0 z-50 flex items-center justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ background: "rgba(6,6,14,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
-            <motion.div className="w-full max-w-sm px-8 py-12 rounded-2xl border border-[#00d4ff]/25 bg-white/[0.02]"
+            <motion.div className="w-full max-w-sm md:max-w-md px-8 py-12 md:px-10 md:py-14 rounded-2xl border border-[#00d4ff]/25 bg-white/[0.02]"
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
-              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
-              <p className="mb-2 font-mono text-2xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
-              <p className="mb-8 text-xs text-white/40">Your name will appear on the leaderboard after each battle.</p>
+              <p className="mb-1 font-mono text-[10px] md:text-xs uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
+              <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
+              <p className="mb-8 text-xs md:text-sm text-white/40">Your name will appear on the leaderboard after each battle.</p>
               <input
                 type="text" maxLength={20} placeholder="e.g. WallStreetWolf"
                 value={nameInput} onChange={e => setNameInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && nameInput.trim() && setPlayerName(nameInput.trim())}
-                className="mb-4 w-full rounded-xl border border-[#00d4ff]/25 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white placeholder-white/20 outline-none focus:border-[#00d4ff]/60 transition-all" />
+                className="mb-4 w-full rounded-xl border border-[#00d4ff]/25 bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none focus:border-[#00d4ff]/60 transition-all" />
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                 disabled={!nameInput.trim()}
                 onClick={() => setPlayerName(nameInput.trim())}
-                className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 font-mono text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
                 ENTER ARENA →
               </motion.button>
             </motion.div>
@@ -423,15 +423,15 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
         <div className="h-px flex-1 bg-[#00d4ff]/20" />
-        <h1 className="font-mono text-xs font-bold uppercase tracking-[0.3em] text-[#00d4ff]">◈ SANDBOX</h1>
+        <h1 className="font-mono text-xs md:text-sm font-bold uppercase tracking-[0.3em] text-[#00d4ff]">◈ SANDBOX</h1>
         <div className="h-px flex-1 bg-[#00d4ff]/20" />
       </div>
 
       {/* List header */}
       <div className="mb-4 flex items-center justify-between">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
+        <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
         <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
-          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
           <span className="text-base leading-none">+</span> NEW STRATEGY
         </motion.button>
       </div>
@@ -441,10 +441,10 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] py-20 text-center">
           <div className="mb-4 font-mono text-4xl text-[#00d4ff]/20">◈</div>
-          <p className="mb-1 font-mono text-sm font-bold uppercase tracking-widest text-white/50">NO STRATEGIES YET</p>
-          <p className="mb-6 text-xs text-white/40">Build your first portfolio strategy to get started</p>
+          <p className="mb-1 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white/50">NO STRATEGIES YET</p>
+          <p className="mb-6 text-xs md:text-sm text-white/40">Build your first portfolio strategy to get started</p>
           <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
-            className="rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-6 py-2.5 font-mono text-xs font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+            className="rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-6 py-2.5 md:px-8 md:py-3 font-mono text-xs md:text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
             + DEPLOY FIRST STRATEGY
           </motion.button>
         </motion.div>
@@ -466,7 +466,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         <div className="mt-12">
           <div className="mb-4 flex items-center gap-4">
             <div className="h-px flex-1 bg-[#ff9f0a]/20" />
-            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-[#ff9f0a]">⚔ BATTLE RECORDS</span>
+            <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-[#ff9f0a]">⚔ BATTLE RECORDS</span>
             <div className="h-px flex-1 bg-[#ff9f0a]/20" />
           </div>
           <div className="overflow-hidden rounded-xl border border-white/[0.06]">
@@ -474,29 +474,29 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               <thead>
                 <tr className="border-b border-white/[0.05]">
                   {["#", "PLAYER", "STRATEGY", "RETURN", "A.I.", "RESULT", "DATE"].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left font-mono text-[9px] uppercase tracking-widest text-white/35">{h}</th>
+                    <th key={h} className="px-4 py-2.5 md:py-3 text-left font-mono text-[9px] md:text-xs uppercase tracking-widest text-white/35">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {battleRecords.map((r, i) => (
                   <tr key={i} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 font-mono text-[10px] text-white/30">{i + 1}</td>
-                    <td className="px-4 py-3 font-mono text-xs font-bold text-white">{r.playerName}</td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-white/55">{r.strategyName}</td>
-                    <td className="px-4 py-3 font-mono text-xs font-bold tabular-nums" style={{ color: r.returnPct >= 0 ? "#30d158" : "#ff453a" }}>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/30">{i + 1}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold text-white">{r.playerName}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.strategyName}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.returnPct >= 0 ? "#30d158" : "#ff453a" }}>
                       {r.returnPct >= 0 ? "+" : ""}{r.returnPct.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-white/45">
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm tabular-nums text-white/45">
                       {r.cpuReturnPct >= 0 ? "+" : ""}{r.cpuReturnPct.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-widest"
+                    <td className="px-4 py-3 md:py-3.5">
+                      <span className="rounded-full px-2.5 py-1 md:px-3 md:py-1.5 font-mono text-[9px] md:text-xs font-bold uppercase tracking-widest"
                         style={{ background: r.won ? "rgba(48,209,88,0.12)" : "rgba(255,69,58,0.12)", color: r.won ? "#30d158" : "#ff453a" }}>
                         {r.won ? "WIN" : "LOSS"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-mono text-[9px] text-white/30">{r.date}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[9px] md:text-xs text-white/30">{r.date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -513,16 +513,16 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             style={{ background: "rgba(0,0,0,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
 
             {/* Builder header */}
-            <div className="flex items-center justify-between border-b border-[#00d4ff]/20 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-[#00d4ff]/20 px-6 py-4 md:px-8 md:py-5">
               <div className="flex items-center gap-4">
                 <button onClick={step > 0 ? prevStep : () => setBuilding(false)}
-                  className="font-mono text-xs font-semibold text-[#00d4ff]/70 transition-colors hover:text-[#00d4ff]">
+                  className="font-mono text-xs md:text-sm font-semibold text-[#00d4ff]/70 transition-colors hover:text-[#00d4ff]">
                   {step > 0 ? "← BACK" : "← CANCEL"}
                 </button>
                 {currentCls && (
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-xl" style={{ color: currentCls.color }}>{currentCls.icon}</span>
-                    <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">{currentCls.label}</span>
+                    <span className="font-mono text-xl md:text-2xl" style={{ color: currentCls.color }}>{currentCls.icon}</span>
+                    <span className="font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white">{currentCls.label}</span>
                     <button onClick={() => setInfoOpen((v) => !v)}
                       className="flex h-5 w-5 items-center justify-center rounded-full border font-mono text-[11px] font-bold transition-all"
                       style={{ borderColor: infoOpen ? currentCls.color : "rgba(255,255,255,0.15)", color: infoOpen ? currentCls.color : "rgba(255,255,255,0.3)", background: infoOpen ? `${currentCls.color}15` : "transparent" }}>
@@ -530,7 +530,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     </button>
                   </div>
                 )}
-                {step === 4 && <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">ALLOCATE WEIGHTS</span>}
+                {step === 4 && <span className="font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white">ALLOCATE WEIGHTS</span>}
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
@@ -539,7 +539,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                       style={{ width: s === step ? "20px" : "6px", background: s === step ? (currentCls?.color ?? "#00d4ff") : s < step ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)" }} />
                   ))}
                 </div>
-                <span className="font-mono text-[10px] text-white/45 uppercase tracking-widest">{String(step + 1).padStart(2, "0")} / 05</span>
+                <span className="font-mono text-[10px] md:text-xs text-white/45 uppercase tracking-widest">{String(step + 1).padStart(2, "0")} / 05</span>
                 <button onClick={() => setBuilding(false)} className="font-mono text-lg leading-none text-white/55 transition-colors hover:text-white/80">×</button>
               </div>
             </div>
@@ -562,7 +562,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                       )}
                     </AnimatePresence>
 
-                    <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-white/50">SELECT 0 – 5 · {selections[currentKey].length} CHOSEN</p>
+                    <p className="mb-4 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">SELECT 0 – 5 · {selections[currentKey].length} CHOSEN</p>
 
                     <div className="mx-auto max-w-xl space-y-2">
                       {currentCls.examples.map((ex) => {
@@ -571,15 +571,15 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         return (
                           <div key={ex.id} className="overflow-hidden rounded-xl border transition-all"
                             style={{ borderColor: isOn ? currentCls.color : "rgba(255,255,255,0.07)", background: isOn ? `${currentCls.color}10` : "rgba(255,255,255,0.02)" }}>
-                            <div className="flex items-center gap-3 px-4 py-3.5">
+                            <div className="flex items-center gap-3 px-4 py-3.5 md:px-5 md:py-4">
                               <button onClick={() => toggleAsset(currentKey, ex.id)}
-                                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border text-xs font-bold transition-all"
+                                className="flex h-6 w-6 md:h-7 md:w-7 flex-shrink-0 items-center justify-center rounded border text-xs font-bold transition-all"
                                 style={{ borderColor: isOn ? currentCls.color : "rgba(255,255,255,0.15)", background: isOn ? currentCls.color : "transparent", color: "#000" }}>
                                 {isOn ? "✓" : ""}
                               </button>
                               <button onClick={() => toggleAsset(currentKey, ex.id)} className="flex flex-1 items-baseline gap-3 text-left">
-                                <span className="font-mono text-sm font-semibold text-white">{ex.label}</span>
-                                <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: `${currentCls.color}70` }}>{ex.ticker}</span>
+                                <span className="font-mono text-sm md:text-base font-semibold text-white">{ex.label}</span>
+                                <span className="font-mono text-[10px] md:text-xs uppercase tracking-widest" style={{ color: `${currentCls.color}70` }}>{ex.ticker}</span>
                               </button>
                               <button onClick={() => setExpandedAsset(isExp ? null : ex.id)}
                                 className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-bold transition-all"
@@ -606,12 +606,12 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                   <motion.div key="weights" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-xl">
                     {activeKeys.length === 0 ? (
                       <div className="flex flex-col items-center py-16 text-center">
-                        <p className="mb-2 font-mono text-sm font-bold uppercase tracking-widest text-white/50">NO ASSETS SELECTED</p>
-                        <p className="text-xs text-white/40">Go back and select at least one asset to continue.</p>
+                        <p className="mb-2 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white/50">NO ASSETS SELECTED</p>
+                        <p className="text-xs md:text-sm text-white/40">Go back and select at least one asset to continue.</p>
                       </div>
                     ) : (
                     <>
-                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">HOW MUCH WEIGHT ON EACH CLASS?</p>
+                    <p className="mb-6 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">HOW MUCH WEIGHT ON EACH CLASS?</p>
                     <div className="space-y-3">
                       {activeKeys.map((key) => {
                         const cls = ASSET_CLASSES[key];
@@ -622,11 +622,11 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                             <div className="mb-3 flex items-center justify-between">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono text-sm" style={{ color: cls.color }}>{cls.icon}</span>
-                                  <span className="font-mono text-xs font-bold uppercase tracking-widest" style={{ color: cls.color }}>{cls.label}</span>
+                                  <span className="font-mono text-sm md:text-base" style={{ color: cls.color }}>{cls.icon}</span>
+                                  <span className="font-mono text-xs md:text-sm font-bold uppercase tracking-widest" style={{ color: cls.color }}>{cls.label}</span>
                                 </div>
                                 {selections[key].length > 0 && (
-                                  <p className="mt-0.5 font-mono text-[9px] uppercase tracking-widest text-white/45">
+                                  <p className="mt-0.5 font-mono text-[9px] md:text-[11px] uppercase tracking-widest text-white/45">
                                     {selections[key].map((id) => cls.examples.find((e) => e.id === id)?.ticker ?? id).join(" · ")}
                                   </p>
                                 )}
@@ -642,7 +642,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                                 return (
                                   <motion.button key={l} whileTap={{ scale: 0.95 }}
                                     onClick={() => setLevels((prev) => ({ ...prev, [key]: l }))}
-                                    className="rounded-lg border py-2.5 font-mono text-xs font-bold uppercase tracking-widest transition-all"
+                                    className="rounded-lg border py-2.5 md:py-3 font-mono text-xs md:text-sm font-bold uppercase tracking-widest transition-all"
                                     style={{ borderColor: active ? cls.color : "rgba(255,255,255,0.08)", background: active ? `${cls.color}20` : "transparent", color: active ? cls.color : "rgba(255,255,255,0.25)" }}>
                                     {LEVEL_LABELS[l]}
                                   </motion.button>
@@ -666,15 +666,15 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             </div>
 
             {/* Builder footer */}
-            <div className="border-t border-[#00d4ff]/20 px-6 py-4">
+            <div className="border-t border-[#00d4ff]/20 px-6 py-4 md:px-8 md:py-5">
               {step < 4 ? (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={nextStep}
-                  className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+                  className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
                   {currentKey && selections[currentKey].length > 0 ? `NEXT → (${selections[currentKey].length} SELECTED)` : "SKIP →"}
                 </motion.button>
               ) : (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={deploy}
-                  className="w-full rounded-xl border border-[#30d158]/50 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  className="w-full rounded-xl border border-[#30d158]/50 bg-[#30d158]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
                   {editingIndex !== null ? "✓ SAVE CHANGES" : "⚡ DEPLOY STRATEGY"}
                 </motion.button>
               )}
@@ -691,16 +691,16 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             style={{ background: "rgba(0,0,0,0.97)", backgroundImage: "linear-gradient(rgba(48,209,88,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(48,209,88,0.02) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
 
             {/* Test header */}
-            <div className="flex items-center justify-between border-b border-[#30d158]/20 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-[#30d158]/20 px-6 py-4 md:px-8 md:py-5">
               <div className="flex items-center gap-4">
                 {testStep !== "horizon" && (
                   <button onClick={() => setTestStep(testStep === "results" ? "events" : "horizon")}
-                    className="font-mono text-xs text-[#30d158]/50 transition-colors hover:text-[#30d158]">← BACK</button>
+                    className="font-mono text-xs md:text-sm text-[#30d158]/50 transition-colors hover:text-[#30d158]">← BACK</button>
                 )}
-                <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">
+                <span className="font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white">
                   {testStep === "horizon" ? "TIME HORIZON" : testStep === "events" ? "MARKET EVENTS" : "SIMULATION RESULTS"}
                 </span>
-                <span className="font-mono text-[10px] text-white/45 uppercase tracking-widest">
+                <span className="font-mono text-[10px] md:text-xs text-white/45 uppercase tracking-widest">
                   {testTarget.strategy.name}
                 </span>
               </div>
@@ -714,12 +714,12 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 {/* Step 1: Horizon */}
                 {testStep === "horizon" && (
                   <motion.div key="horizon" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-sm">
-                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">HOW LONG DO YOU WANT TO TEST?</p>
+                    <p className="mb-6 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">HOW LONG DO YOU WANT TO TEST?</p>
                     <div className="grid grid-cols-5 gap-3">
                       {HORIZONS.map((y) => (
                         <motion.button key={y} whileTap={{ scale: 0.95 }}
                           onClick={() => setHorizon(y)}
-                          className="rounded-xl border py-5 font-mono text-sm font-bold transition-all"
+                          className="rounded-xl border py-5 md:py-6 font-mono text-sm md:text-base font-bold transition-all"
                           style={{
                             borderColor: horizon === y ? "#30d158" : "rgba(255,255,255,0.08)",
                             background:  horizon === y ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.02)",
@@ -729,7 +729,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         </motion.button>
                       ))}
                     </div>
-                    <p className="mt-6 text-center text-xs text-white/40">
+                    <p className="mt-6 text-center text-xs md:text-sm text-white/40">
                       Simulation runs {horizon * 12} monthly steps using GBM with your allocation
                     </p>
                   </motion.div>
@@ -738,14 +738,14 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 {/* Step 2: Events */}
                 {testStep === "events" && (
                   <motion.div key="events" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-xl">
-                    <p className="mb-5 font-mono text-[10px] uppercase tracking-widest text-white/50">
+                    <p className="mb-5 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">
                       SELECT ANY EVENTS AND SET WHEN THEY HAPPEN · {pickedEvents.length} SELECTED
                     </p>
 
                     {/* Positive group */}
                     <div className="mb-3 flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-[#30d158]" />
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158]">POSITIVE EVENTS</span>
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-[#30d158]" />
+                      <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#30d158]">POSITIVE EVENTS</span>
                     </div>
                     <div className="mb-5 space-y-2">
                       {POS_EVENTS.map((ev) => {
@@ -755,13 +755,13 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                           <div key={ev.key} className="overflow-hidden rounded-xl border transition-all"
                             style={{ borderColor: on ? "#30d158" : "rgba(255,255,255,0.07)", background: on ? "rgba(48,209,88,0.06)" : "rgba(255,255,255,0.02)" }}>
                             <button onClick={() => toggleEvent(ev.key)} className="flex w-full items-start gap-3 p-3.5 text-left">
-                              <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
+                              <div className="mt-0.5 flex h-5 w-5 md:h-6 md:w-6 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
                                 style={{ borderColor: on ? "#30d158" : "rgba(255,255,255,0.15)", background: on ? "#30d158" : "transparent", color: "#000" }}>
                                 {on ? "✓" : ""}
                               </div>
                               <div>
-                                <p className="font-mono text-xs font-bold" style={{ color: on ? "#30d158" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
-                                <p className="mt-0.5 text-[11px] leading-snug text-white/55">{ev.description}</p>
+                                <p className="font-mono text-xs md:text-sm font-bold" style={{ color: on ? "#30d158" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
+                                <p className="mt-0.5 text-[11px] md:text-xs leading-snug text-white/55">{ev.description}</p>
                               </div>
                             </button>
                             <AnimatePresence>
@@ -784,8 +784,8 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
 
                     {/* Negative group */}
                     <div className="mb-3 flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-[#ff453a]" />
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff453a]">NEGATIVE EVENTS</span>
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-[#ff453a]" />
+                      <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">NEGATIVE EVENTS</span>
                     </div>
                     <div className="space-y-2">
                       {NEG_EVENTS.map((ev) => {
@@ -795,13 +795,13 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                           <div key={ev.key} className="overflow-hidden rounded-xl border transition-all"
                             style={{ borderColor: on ? "#ff453a" : "rgba(255,255,255,0.07)", background: on ? "rgba(255,69,58,0.06)" : "rgba(255,255,255,0.02)" }}>
                             <button onClick={() => toggleEvent(ev.key)} className="flex w-full items-start gap-3 p-3.5 text-left">
-                              <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
+                              <div className="mt-0.5 flex h-5 w-5 md:h-6 md:w-6 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
                                 style={{ borderColor: on ? "#ff453a" : "rgba(255,255,255,0.15)", background: on ? "#ff453a" : "transparent", color: "#000" }}>
                                 {on ? "✓" : ""}
                               </div>
                               <div>
-                                <p className="font-mono text-xs font-bold" style={{ color: on ? "#ff453a" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
-                                <p className="mt-0.5 text-[11px] leading-snug text-white/55">{ev.description}</p>
+                                <p className="font-mono text-xs md:text-sm font-bold" style={{ color: on ? "#ff453a" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
+                                <p className="mt-0.5 text-[11px] md:text-xs leading-snug text-white/55">{ev.description}</p>
                               </div>
                             </button>
                             <AnimatePresence>
@@ -827,7 +827,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 {/* Step 3: Results */}
                 {testStep === "results" && simResult && (
                   <motion.div key="results" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-2xl">
-                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">
+                    <p className="mb-6 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">
                       {horizon}Y SIMULATION · {testTarget.strategy.name}
                     </p>
 
@@ -846,14 +846,14 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     {/* Events fired */}
                     {pickedEvents.length > 0 && (
                       <div className="mt-5 rounded-xl border border-white/[0.06] p-4">
-                        <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-white/50">EVENTS INJECTED</p>
+                        <p className="mb-3 font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">EVENTS INJECTED</p>
                         <div className="flex flex-wrap gap-2">
                           {pickedEvents.map((key) => {
                             const ev  = GAME_EVENTS.find((e) => e.key === key)!;
                             const pos = ev.type === "positive";
                             const yr  = eventTimings[key] ?? Math.round(horizon / 2);
                             return (
-                              <span key={key} className="rounded-full border px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wide"
+                              <span key={key} className="rounded-full border px-3 py-1 md:px-4 md:py-1.5 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wide"
                                 style={{ borderColor: pos ? "rgba(48,209,88,0.4)" : "rgba(255,69,58,0.4)", color: pos ? "#30d158" : "#ff453a", background: pos ? "rgba(48,209,88,0.06)" : "rgba(255,69,58,0.06)" }}>
                                 {ev.label} · Y{yr}
                               </span>
@@ -867,7 +867,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <div className="mt-5 rounded-xl border border-[#00d4ff]/20 bg-[#00d4ff]/04 p-5">
                       <div className="mb-3 flex items-center gap-2">
                         <span className="font-mono text-sm text-[#00d4ff]">◈</span>
-                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#00d4ff]">COACH FEEDBACK</span>
+                        <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#00d4ff]">COACH FEEDBACK</span>
                       </div>
                       {coachLoading ? (
                         <div className="flex items-center gap-3">
@@ -877,7 +877,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                           <span className="font-mono text-[11px] text-white/50">Analysing your strategy…</span>
                         </div>
                       ) : coachText ? (
-                        <p className="text-sm leading-relaxed text-white/70">{coachText}</p>
+                        <p className="text-sm md:text-base leading-relaxed text-white/70">{coachText}</p>
                       ) : (
                         <p className="font-mono text-[11px] text-white/45">Coach unavailable</p>
                       )}
@@ -888,25 +888,25 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             </div>
 
             {/* Test footer */}
-            <div className="border-t border-[#30d158]/20 px-6 py-4">
+            <div className="border-t border-[#30d158]/20 px-6 py-4 md:px-8 md:py-5">
               {testStep === "horizon" && (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                   onClick={() => setTestStep("events")}
-                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
                   NEXT → SELECT EVENTS
                 </motion.button>
               )}
               {testStep === "events" && (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                   onClick={runTest}
-                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
                   ▶ RUN SIMULATION
                 </motion.button>
               )}
               {testStep === "results" && (
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                   onClick={() => { setTestStep("events"); setSimResult(null); }}
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-white/40 transition-all hover:bg-white/[0.06]">
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white/40 transition-all hover:bg-white/[0.06]">
                   ↺ RUN AGAIN
                 </motion.button>
               )}
@@ -931,12 +931,12 @@ function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
   const isPos   = ret === null || ret >= 0;
 
   return (
-    <div className="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/10">
+    <div className="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 md:p-6 transition-all hover:border-white/10">
       {/* Name + return */}
       <div className="mb-4 flex items-start justify-between gap-2">
-        <p className="font-mono text-sm font-bold text-white">{strategy.name}</p>
+        <p className="font-mono text-sm md:text-base font-bold text-white">{strategy.name}</p>
         {ret !== null && (
-          <p className="font-mono text-sm font-bold tabular-nums flex-shrink-0" style={{ color: isPos ? "#30d158" : "#ff453a" }}>
+          <p className="font-mono text-sm md:text-base font-bold tabular-nums flex-shrink-0" style={{ color: isPos ? "#30d158" : "#ff453a" }}>
             {isPos ? "+" : ""}{ret.toFixed(1)}%
           </p>
         )}
@@ -951,10 +951,10 @@ function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
           return (
             <div key={key}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-widest text-white/50">{label}</span>
-                <span className="font-mono text-[9px] tabular-nums text-white/55">{pct}%</span>
+                <span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-white/50">{label}</span>
+                <span className="font-mono text-[9px] md:text-xs tabular-nums text-white/55">{pct}%</span>
               </div>
-              <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.05]">
+              <div className="h-1 md:h-1.5 w-full overflow-hidden rounded-full bg-white/[0.05]">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, opacity: 0.7 }} />
               </div>
             </div>
@@ -966,20 +966,20 @@ function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
       <div className="mt-5 space-y-2 border-t border-white/[0.05] pt-4">
         <div className="grid grid-cols-3 gap-2">
           <button onClick={onDelete}
-            className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#ff453a]/40 hover:bg-[#ff453a]/08 hover:text-[#ff453a]">
+            className="rounded-lg border border-white/[0.06] py-2 md:py-2.5 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#ff453a]/40 hover:bg-[#ff453a]/08 hover:text-[#ff453a]">
             DELETE
           </button>
           <button onClick={onEdit}
-            className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/08 hover:text-[#00d4ff]">
+            className="rounded-lg border border-white/[0.06] py-2 md:py-2.5 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/08 hover:text-[#00d4ff]">
             EDIT
           </button>
           <button onClick={onTest}
-            className="rounded-lg border border-[#30d158]/30 bg-[#30d158]/08 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/15">
+            className="rounded-lg border border-[#30d158]/30 bg-[#30d158]/08 py-2 md:py-2.5 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/15">
             TEST
           </button>
         </div>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={onBattle}
-          className="w-full rounded-lg border border-[#ff9f0a]/35 bg-[#ff9f0a]/08 py-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/15">
+          className="w-full rounded-lg border border-[#ff9f0a]/35 bg-[#ff9f0a]/08 py-2.5 md:py-3 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/15">
           ⚔ BATTLE MODE
         </motion.button>
       </div>
@@ -990,9 +990,9 @@ function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
 /* ─── Metric tile ─── */
 function Metric({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-white/50">{label}</p>
-      <p className="mt-1 font-mono text-xl font-bold tabular-nums" style={{ color }}>{value}</p>
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 md:p-5">
+      <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-white/50">{label}</p>
+      <p className="mt-1 font-mono text-xl md:text-2xl font-bold tabular-nums" style={{ color }}>{value}</p>
     </div>
   );
 }

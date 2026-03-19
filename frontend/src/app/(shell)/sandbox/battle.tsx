@@ -349,7 +349,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
         {phase === "countdown" && (
           <motion.div className="absolute inset-0 z-30 flex flex-col items-center justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className="mb-6 font-mono text-[10px] uppercase tracking-[0.4em] text-[#00d4ff]/55">BATTLE COMMENCING IN</p>
+            <p className="mb-6 font-mono text-[10px] md:text-sm uppercase tracking-[0.4em] text-[#00d4ff]/55">BATTLE COMMENCING IN</p>
             <AnimatePresence mode="wait">
               <motion.p key={countdown}
                 className="font-mono font-bold leading-none"
@@ -358,15 +358,15 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
                 {countdown === 0 ? "⚔" : countdown}
               </motion.p>
             </AnimatePresence>
-            <div className="mt-8 flex items-center gap-6">
+            <div className="mt-8 flex items-center gap-6 md:gap-10">
               <div className="text-right">
-                <p className="font-mono text-xs font-bold text-[#00d4ff]">{playerName}</p>
-                <p className="font-mono text-[10px] text-[#00d4ff]/50">THE KNIGHT</p>
+                <p className="font-mono text-xs md:text-base font-bold text-[#00d4ff]">{playerName}</p>
+                <p className="font-mono text-[10px] md:text-xs text-[#00d4ff]/50">THE KNIGHT</p>
               </div>
-              <span className="font-mono text-sm text-white/20">VS</span>
+              <span className="font-mono text-sm md:text-lg text-white/20">VS</span>
               <div>
-                <p className="font-mono text-xs font-bold text-[#ff453a]">A.I. FUND</p>
-                <p className="font-mono text-[10px] text-[#ff453a]/50">THE KNIGHT</p>
+                <p className="font-mono text-xs md:text-base font-bold text-[#ff453a]">A.I. FUND</p>
+                <p className="font-mono text-[10px] md:text-xs text-[#ff453a]/50">THE KNIGHT</p>
               </div>
             </div>
           </motion.div>
@@ -379,24 +379,24 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
           <motion.div className="absolute inset-0 z-30 flex items-center justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ background: "rgba(0,0,0,0.92)" }}>
-            <motion.div className="w-full max-w-sm px-6" initial={{ scale: 0.88, y: 24 }} animate={{ scale: 1, y: 0 }}>
+            <motion.div className="w-full max-w-sm md:max-w-md px-6" initial={{ scale: 0.88, y: 24 }} animate={{ scale: 1, y: 0 }}>
               <div className="mb-3 flex items-center gap-2">
-                <motion.div className="h-2 w-2 rounded-full" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.6, repeat: Infinity }}
+                <motion.div className="h-2 w-2 md:h-2.5 md:w-2.5 rounded-full" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.6, repeat: Infinity }}
                   style={{ background: pendingEv.type === "negative" ? "#ff453a" : "#30d158" }} />
-                <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: pendingEv.type === "negative" ? "#ff453a" : "#30d158" }}>
+                <span className="font-mono text-[10px] md:text-xs uppercase tracking-widest" style={{ color: pendingEv.type === "negative" ? "#ff453a" : "#30d158" }}>
                   {pendingEv.type === "negative" ? "⚠ CRISIS EVENT" : "✦ MARKET EVENT"} · REACT IN {reactTimer}s
                 </span>
               </div>
-              <p className="mb-2 font-mono text-3xl font-bold text-white leading-tight">{pendingEv.label}</p>
-              <p className="mb-7 text-sm leading-relaxed text-white/55">{pendingEv.description}</p>
-              <div className="space-y-2">
+              <p className="mb-2 font-mono text-3xl md:text-4xl font-bold text-white leading-tight">{pendingEv.label}</p>
+              <p className="mb-7 text-sm md:text-base leading-relaxed text-white/55">{pendingEv.description}</p>
+              <div className="space-y-2 md:space-y-3">
                 {REACTIONS.map(r => (
                   <motion.button key={r.key} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                     onClick={() => resolveEvent(r.key)}
-                    className="w-full rounded-xl border px-5 py-4 text-left transition-all"
+                    className="w-full rounded-xl border px-5 py-4 md:px-6 md:py-5 text-left transition-all"
                     style={{ borderColor: `${r.color}45`, background: `${r.color}0d` }}>
-                    <p className="font-mono text-sm font-bold" style={{ color: r.color }}>{r.label}</p>
-                    <p className="mt-0.5 text-xs text-white/45">{r.desc}</p>
+                    <p className="font-mono text-sm md:text-base font-bold" style={{ color: r.color }}>{r.label}</p>
+                    <p className="mt-0.5 text-xs md:text-sm text-white/45">{r.desc}</p>
                   </motion.button>
                 ))}
               </div>
@@ -408,27 +408,28 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
       {/* ── Victory / Defeat ── */}
       <AnimatePresence>
         {phase === "done" && (
-          <motion.div className="absolute inset-0 z-30 flex flex-col items-center justify-center"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <motion.div className="absolute inset-0 z-30 flex flex-col items-center justify-center pb-48 md:pb-56"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ background: "rgba(6,6,14,0.85)" }}>
             <motion.p className="font-mono font-bold leading-none"
               style={{ fontSize: "clamp(4rem,12vw,8rem)", color: won ? "#30d158" : "#ff453a", textShadow: `0 0 80px ${won ? "#30d158" : "#ff453a"}` }}
               initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200 }}>
               {won ? "VICTORY" : "DEFEAT"}
             </motion.p>
-            <p className="mt-3 font-mono text-sm text-white/45">{playerName} · {strategy.name}</p>
-            <div className="mt-8 flex gap-8">
+            <p className="mt-3 font-mono text-sm md:text-base text-white/45">{playerName} · {strategy.name}</p>
+            <div className="mt-8 md:mt-10 flex gap-8 md:gap-12">
               <div className="text-center">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-[#00d4ff]/55">YOUR RETURN</p>
-                <p className="font-mono text-2xl font-bold" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</p>
+                <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#00d4ff]/55">YOUR RETURN</p>
+                <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</p>
               </div>
               <div className="w-px bg-white/10" />
               <div className="text-center">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-[#ff453a]/55">A.I. RETURN</p>
-                <p className="font-mono text-2xl font-bold" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</p>
+                <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#ff453a]/55">A.I. RETURN</p>
+                <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</p>
               </div>
             </div>
             <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
-              className="mt-10 rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-8 py-3 font-mono text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+              className="mt-10 rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
               RETURN TO SANDBOX
             </motion.button>
           </motion.div>
@@ -436,56 +437,53 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between border-b border-[#00d4ff]/10 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-xs font-bold text-[#00d4ff]">⚔ ARENA</span>
-          <span className="font-mono text-[10px] text-white/35 uppercase tracking-widest">YEAR {year} / 10</span>
+      <div className="flex items-center justify-between border-b border-[#00d4ff]/10 px-6 py-3 md:px-8 md:py-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          <span className="font-mono text-xs md:text-sm font-bold text-[#00d4ff]">⚔ ARENA</span>
+          <span className="font-mono text-[10px] md:text-xs text-white/35 uppercase tracking-widest">YEAR {year} / 10</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="h-1.5 w-40 overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="h-1.5 md:h-2 w-40 md:w-56 overflow-hidden rounded-full bg-white/[0.06]">
             <motion.div className="h-full rounded-full bg-[#00d4ff]" style={{ width: `${(month / BATTLE_MONTHS) * 100}%` }} />
           </div>
-          {phase !== "fighting" && phase !== "paused" && (
-            <button onClick={onClose} className="font-mono text-sm text-white/40 hover:text-white/70 transition-colors">×</button>
-          )}
         </div>
       </div>
 
       {/* ── HP bars ── */}
       <div className="grid grid-cols-2 gap-px border-b border-white/[0.04]">
-        <div className="px-6 py-3 border-r border-white/[0.04]">
-          <div className="mb-1 flex items-center justify-between">
+        <div className="px-6 py-3 md:px-8 md:py-4 border-r border-white/[0.04]">
+          <div className="mb-1 md:mb-2 flex items-center justify-between">
             <div>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#00d4ff]">{playerName}</span>
-              <span className="ml-2 font-mono text-[9px] text-[#00d4ff]/40">THE KNIGHT</span>
+              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#00d4ff]">{playerName}</span>
+              <span className="ml-2 font-mono text-[9px] md:text-[11px] text-[#00d4ff]/40">THE KNIGHT</span>
             </div>
-            <span className="font-mono text-sm font-bold tabular-nums" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</span>
+            <span className="font-mono text-sm md:text-base font-bold tabular-nums" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</span>
           </div>
-          <motion.div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
+          <motion.div className="h-2 md:h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
             animate={pDesperate ? { boxShadow: ["0 0 0px #ff453a00", "0 0 8px #ff453a80", "0 0 0px #ff453a00"] } : {}}
             transition={pDesperate ? { duration: 0.9, repeat: Infinity } : {}}>
             <motion.div className="h-full rounded-full" layout
               style={{ width: `${Math.min(100, (pCur / 18000) * 100)}%`, background: pCur < 10000 ? "linear-gradient(90deg,#ff453a,#ff9f0a)" : "linear-gradient(90deg,#00d4ff,#7c3aed)" }}
               transition={{ duration: 0.4 }} />
           </motion.div>
-          <p className="mt-1 font-mono text-[10px] tabular-nums text-white/50">${pCur.toFixed(0)}</p>
+          <p className="mt-1 font-mono text-[10px] md:text-xs tabular-nums text-white/50">${pCur.toFixed(0)}</p>
         </div>
-        <div className="px-6 py-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="font-mono text-sm font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
+        <div className="px-6 py-3 md:px-8 md:py-4">
+          <div className="mb-1 md:mb-2 flex items-center justify-between">
+            <span className="font-mono text-sm md:text-base font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
             <div className="text-right">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff453a]">A.I. FUND</span>
-              <span className="ml-2 font-mono text-[9px] text-[#ff453a]/40">THE KNIGHT</span>
+              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">A.I. FUND</span>
+              <span className="ml-2 font-mono text-[9px] md:text-[11px] text-[#ff453a]/40">THE KNIGHT</span>
             </div>
           </div>
-          <motion.div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
+          <motion.div className="h-2 md:h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
             animate={cDesperate ? { boxShadow: ["0 0 0px #ff453a00", "0 0 8px #ff453a80", "0 0 0px #ff453a00"] } : {}}
             transition={cDesperate ? { duration: 0.9, repeat: Infinity } : {}}>
             <motion.div className="h-full rounded-full" layout
               style={{ width: `${Math.min(100, (cCur / 18000) * 100)}%`, background: cCur < 10000 ? "linear-gradient(90deg,#ff453a,#ff9f0a)" : "linear-gradient(90deg,#ff453a,#ff9f0a)" }}
               transition={{ duration: 0.4 }} />
           </motion.div>
-          <p className="mt-1 font-mono text-[10px] tabular-nums text-right text-white/50">${cCur.toFixed(0)}</p>
+          <p className="mt-1 font-mono text-[10px] md:text-xs tabular-nums text-right text-white/50">${cCur.toFixed(0)}</p>
         </div>
       </div>
 
@@ -503,18 +501,18 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
         </div>
 
         {/* Chart */}
-        <div className="px-5 pb-5">
-          <div className="mb-1.5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5"><div className="h-px w-5 bg-[#00d4ff]" /><span className="font-mono text-[9px] uppercase tracking-widest text-[#00d4ff]/60">{playerName}</span></div>
-              <div className="flex items-center gap-1.5"><div className="h-px w-5 bg-[#ff453a]" /><span className="font-mono text-[9px] uppercase tracking-widest text-[#ff453a]/60">A.I. FUND</span></div>
+        <div className="px-5 pb-5 md:px-8 md:pb-6">
+          <div className="mb-1.5 md:mb-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-4 md:gap-6">
+              <div className="flex items-center gap-1.5 md:gap-2"><div className="h-px w-5 md:w-6 bg-[#00d4ff]" /><span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-[#00d4ff]/60">{playerName}</span></div>
+              <div className="flex items-center gap-1.5 md:gap-2"><div className="h-px w-5 md:w-6 bg-[#ff453a]" /><span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-[#ff453a]/60">A.I. FUND</span></div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-px w-5 border-t border-dashed border-white/30" />
-              <span className="font-mono text-[9px] text-white/35">$10,000 START</span>
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <div className="h-px w-5 md:w-6 border-t border-dashed border-white/30" />
+              <span className="font-mono text-[9px] md:text-xs text-white/35">$10,000 START</span>
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] px-3 py-2">
+          <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] px-3 py-2 md:px-4 md:py-3">
             <BattleChart pH={pH} cH={cH} />
           </div>
         </div>

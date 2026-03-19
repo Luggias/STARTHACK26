@@ -133,10 +133,7 @@ export function BattleStage(props: BattleStageProps) {
             tint: [0xffffff, 0xffdd00, 0xff8800, 0x88ddff, 0xff8877],
           });
 
-          /* Strategy label */
-          this.add.text(W / 2, H - 4, stateRef.current.strategyName.toUpperCase(), {
-            fontFamily: "monospace", fontSize: "9px", color: "#ffffff",
-          }).setOrigin(0.5, 1).setAlpha(0.2);
+          /* Strategy label removed — shown in chart legend instead */
         }
 
         tw(targets: any, cfg: object) {
