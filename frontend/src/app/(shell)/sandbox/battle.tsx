@@ -55,62 +55,77 @@ function stepPV(pv: number, alloc: Record<string, number>, randn: () => number, 
 }
 
 /* ═══════════════════════════════
-   BULL — charging low, head down, forward-pointing horns, breath puffs
-   Reference: cartoon financial bull, stocky body, ground-level head
+   BULL — cartoon reference style: heavy barrel body, head low charging,
+   large cream horns curving UP, big protruding snout, breath + dust puffs
 ═══════════════════════════════ */
 function Bull({ isHit }: { isHit: boolean }) {
   const c = "#00d4ff";
+  const horn = "#e8d89a"; // cream/ivory horns matching cartoon
   return (
-    <svg viewBox="0 0 210 155" fill="none"
+    <svg viewBox="0 0 235 175" fill="none"
       style={{ overflow: "visible", filter: isHit ? "brightness(4) saturate(0)" : "none", transition: "filter 0.15s" }}>
-      {/* Tail — short curl upward at back-left */}
-      <path d="M 22 104 C 8 88 6 68 16 60 C 24 54 34 62 28 74"
+
+      {/* Tail — high curl at back-left, looping upward */}
+      <path d="M 26 90 C 8 68 5 44 18 36 C 30 28 44 40 38 56"
         stroke={c} strokeWidth="9" strokeLinecap="round" fill="none" />
-      <circle cx="28" cy="74" r="9" fill={c} />
+      <circle cx="38" cy="56" r="9" fill={c} />
 
-      {/* Main body — heavy barrel shape */}
-      <ellipse cx="88" cy="110" rx="60" ry="36" fill={c} />
-      {/* Shoulder hump rises higher than back */}
-      <ellipse cx="120" cy="90" rx="36" ry="32" fill={c} />
+      {/* Main body — massive heavy barrel */}
+      <ellipse cx="96" cy="118" rx="74" ry="46" fill={c} />
 
-      {/* Neck — steep downward angle connecting shoulder to very low head */}
-      <path d="M 138 94 L 158 118" stroke={c} strokeWidth="28" strokeLinecap="round" fill="none" />
+      {/* Shoulder hump — large, elevated above back */}
+      <ellipse cx="140" cy="88" rx="50" ry="44" fill={c} />
 
-      {/* Head — very LOW, pushed forward (charging pose, nearly at ground level) */}
-      <ellipse cx="164" cy="124" rx="30" ry="23" fill={c} />
+      {/* Neck — very thick, steep forward-down angle */}
+      <path d="M 160 94 L 190 126" stroke={c} strokeWidth="34" strokeLinecap="round" fill="none" />
 
-      {/* Horns — FORWARD-pointing, short, thick (key reference feature) */}
-      <path d="M 152 108 C 164 96 182 96 188 104 C 192 110 182 116 168 112" fill={c} />
-      <path d="M 150 114 C 160 104 174 104 178 110 C 180 114 172 118 162 116" fill={c} opacity={0.55} />
+      {/* Head — pushed forward and low (charging pose) */}
+      <ellipse cx="196" cy="132" rx="36" ry="28" fill={c} />
 
-      {/* Ear — small, pinned back behind horn */}
-      <ellipse cx="148" cy="112" rx="9" ry="7" fill={c} />
-      <ellipse cx="148" cy="112" rx="5" ry="4" fill="rgba(0,0,0,0.3)" />
+      {/* Horns — large cream/ivory, curving UP from top of head (key cartoon feature) */}
+      <path d="M 174 112 C 166 84 180 60 200 62 C 214 64 218 84 204 104"
+        fill={horn} />
+      <path d="M 184 112 C 176 86 188 64 206 66 C 218 68 220 86 208 106"
+        fill={horn} opacity={0.55} />
 
-      {/* Eye */}
-      <circle cx="170" cy="120" r="5" fill="rgba(0,0,0,0.88)" />
-      <circle cx="171" cy="119" r="2" fill="white" opacity={0.38} />
+      {/* Ear — small, pinned back between horn and neck */}
+      <ellipse cx="168" cy="120" rx="10" ry="8" fill={c} />
+      <ellipse cx="168" cy="120" rx="5.5" ry="4" fill="rgba(0,0,0,0.28)" />
 
-      {/* Snout / nose */}
-      <ellipse cx="190" cy="130" rx="10" ry="8" fill={c} opacity={0.7} />
-      <ellipse cx="188" cy="128" rx="4" ry="3" fill="rgba(0,0,0,0.62)" />
+      {/* Eye — small, fierce */}
+      <circle cx="186" cy="126" r="6" fill="rgba(0,0,0,0.9)" />
+      <circle cx="187" cy="125" r="2.2" fill="white" opacity={0.38} />
 
-      {/* Breath puffs — cartoon charging detail */}
-      <circle cx="198" cy="142" r="6" fill="white" opacity={0.55} />
-      <circle cx="207" cy="147" r="4" fill="white" opacity={0.38} />
-      <circle cx="202" cy="152" r="3" fill="white" opacity={0.25} />
+      {/* Muzzle — large protruding snout like cartoon */}
+      <ellipse cx="218" cy="140" rx="16" ry="13" fill={c} opacity={0.82} />
+
+      {/* Nostrils — two oval holes */}
+      <ellipse cx="213" cy="136" rx="5.5" ry="4" fill="rgba(0,0,0,0.65)" />
+      <ellipse cx="222" cy="136" rx="5" ry="4" fill="rgba(0,0,0,0.65)" />
+
+      {/* Breath puffs from nostrils — cartoon charging detail */}
+      <circle cx="228" cy="148" r="7" fill="white" opacity={0.58} />
+      <circle cx="236" cy="155" r="5" fill="white" opacity={0.40} />
+      <circle cx="230" cy="162" r="3.5" fill="white" opacity={0.26} />
 
       {/* Legs — four stocky pillars */}
-      <rect x="28" y="130" width="16" height="24" rx="7" fill={c} />
-      <rect x="52" y="132" width="16" height="22" rx="7" fill={c} />
-      <rect x="112" y="132" width="16" height="22" rx="7" fill={c} />
-      <rect x="134" y="130" width="16" height="24" rx="7" fill={c} />
+      {/* Back pair */}
+      <rect x="30" y="140" width="20" height="30" rx="9" fill={c} />
+      <rect x="58" y="142" width="20" height="28" rx="9" fill={c} />
+      {/* Front pair */}
+      <rect x="124" y="142" width="20" height="28" rx="9" fill={c} />
+      <rect x="152" y="140" width="20" height="30" rx="9" fill={c} />
 
-      {/* Hooves — dark caps on legs */}
-      <rect x="26" y="148" width="20" height="8" rx="4" fill="rgba(0,0,0,0.42)" />
-      <rect x="50" y="148" width="20" height="7" rx="3" fill="rgba(0,0,0,0.35)" />
-      <rect x="110" y="148" width="20" height="7" rx="3" fill="rgba(0,0,0,0.35)" />
-      <rect x="132" y="148" width="20" height="8" rx="4" fill="rgba(0,0,0,0.42)" />
+      {/* Hooves — dark caps */}
+      <rect x="28" y="160" width="24" height="11" rx="5" fill="rgba(0,0,0,0.48)" />
+      <rect x="56" y="161" width="24" height="10" rx="4" fill="rgba(0,0,0,0.40)" />
+      <rect x="122" y="161" width="24" height="10" rx="4" fill="rgba(0,0,0,0.40)" />
+      <rect x="150" y="160" width="24" height="11" rx="5" fill="rgba(0,0,0,0.48)" />
+
+      {/* Dust puffs under front hooves — charging detail */}
+      <circle cx="134" cy="172" r="5.5" fill="white" opacity={0.36} />
+      <circle cx="162" cy="172" r="5" fill="white" opacity={0.28} />
+      <circle cx="148" cy="175" r="3.5" fill="white" opacity={0.20} />
     </svg>
   );
 }
