@@ -224,40 +224,42 @@ export default function SandboxPage() {
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
     setMatchStatus("searching");
-    setMatchTimer(15);
+    setMatchTimer(30);
     setShowBotOption(false);
     matchCancelled.current = false;
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     botTimerRef.current = setTimeout(() => { if (!matchCancelled.current) setShowBotOption(true); }, 5000);
 
     const playerId = "player-" + Math.random().toString(36).slice(2, 8);
+    const start = Date.now();
+    let roomId: string | null = null;
 
-    try {
-      // Atomically join an open room or create a new one
-      const result = await quickmatch(playerId, playerName);
+    const poll = async () => {
       if (matchCancelled.current) return;
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      setMatchTimer(Math.max(0, 30 - elapsed));
 
-      if (result.joined) {
-        // Matched immediately — go to battle room
-        router.push(`/battle/${result.room_id}`);
+      if (elapsed >= 30) {
+        setMatchStatus("not_found");
         return;
       }
 
-      // Created a new room — wait for someone to join
-      setMatchStatus("waiting");
-      const roomId = result.room_id;
-      const start = Date.now();
-      const poll = async () => {
-        if (matchCancelled.current) return;
-        const elapsed = Math.floor((Date.now() - start) / 1000);
-        setMatchTimer(Math.max(0, 15 - elapsed));
+      try {
+        if (!roomId) {
+          // First call: try to join or create a room
+          const result = await quickmatch(playerId, playerName);
+          if (matchCancelled.current) return;
 
-        if (elapsed >= 15) {
-          setMatchStatus("not_found");
-          return;
-        }
+          if (result.joined) {
+            router.push(`/battle/${result.room_id}`);
+            return;
+          }
 
-        try {
+          // Created a room — now poll for opponent
+          roomId = result.room_id;
+          setMatchStatus("waiting");
+        } else {
+          // Poll: check if someone joined our room
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/battles/${roomId}`);
           const data = await res.json();
           if (matchCancelled.current) return;
@@ -265,14 +267,12 @@ export default function SandboxPage() {
             router.push(`/battle/${roomId}`);
             return;
           }
-        } catch { /* ignore */ }
+        }
+      } catch { /* server unreachable — keep trying */ }
 
-        setTimeout(poll, 2000);
-      };
-      poll();
-    } catch {
-      if (!matchCancelled.current) setMatchStatus("not_found");
-    }
+      setTimeout(poll, 2000);
+    };
+    poll();
   }, [playerName, router]);
 
   function cancelMatchmaking() {

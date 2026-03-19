@@ -10,6 +10,7 @@ import json
 import random
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -279,6 +280,47 @@ async def run_simulation(room: BattleRoom) -> None:
         "type": "result",
         **room.results,
     })
+
+    # Persist to database
+    _save_battle_result(room)
+
+
+def _save_battle_result(room: BattleRoom) -> None:
+    """Persist battle result to Supabase (best-effort, never crashes the battle)."""
+    try:
+        import os
+        if not (os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")):
+            return
+        from db.database import create
+
+        if not room.results or not room.player1 or not room.player2:
+            return
+
+        r = room.results
+        p1 = r["p1"]
+        p2 = r["p2"]
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Save one row per player
+        for player_data, opponent_data, is_winner in [
+            (p1, p2, r["winner_id"] == p1["player_id"]),
+            (p2, p1, r["winner_id"] == p2["player_id"]),
+        ]:
+            create("battle_results", {
+                "room_id": room.room_id,
+                "player_id": player_data["player_id"],
+                "player_name": player_data["username"],
+                "opponent_name": opponent_data["username"],
+                "player_return": round(player_data["total_return"], 2),
+                "opponent_return": round(opponent_data["total_return"], 2),
+                "player_score": round(player_data["score"], 2),
+                "won": is_winner,
+                "scenario_key": r.get("scenario_key", ""),
+                "portfolio": json.dumps(player_data.get("portfolio", {})),
+                "played_at": now,
+            })
+    except Exception as e:
+        print(f"[battle] Failed to save result to DB: {e}")
 
 
 async def handle_ws_message(room: BattleRoom, ws: WebSocket, raw: str) -> None:

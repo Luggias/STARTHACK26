@@ -694,6 +694,33 @@ def get_battle(room_id: str):
     }
 
 
+@app.get("/battles/history")
+def get_battle_history(limit: int = 50):
+    """Fetch recent battle results from the database."""
+    if not _HAS_DB:
+        return {"results": []}
+    try:
+        rows = read("battle_results")
+        # Sort by played_at descending, limit
+        rows.sort(key=lambda r: r.get("played_at", ""), reverse=True)
+        return {"results": rows[:limit]}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
+
+
+@app.get("/battles/history/{player_name}")
+def get_player_battle_history(player_name: str, limit: int = 20):
+    """Fetch battle results for a specific player."""
+    if not _HAS_DB:
+        return {"results": []}
+    try:
+        rows = read("battle_results", filters={"player_name": player_name})
+        rows.sort(key=lambda r: r.get("played_at", ""), reverse=True)
+        return {"results": rows[:limit]}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
+
+
 # ---------------------------------------------------------------------------
 # Battle WebSocket
 # ---------------------------------------------------------------------------
