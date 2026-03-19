@@ -78,11 +78,6 @@ export function BattleStage(props: BattleStageProps) {
         }
 
         create() {
-          /* Floor */
-          const floor = this.add.graphics();
-          floor.lineStyle(1, 0xffffff, 0.07);
-          floor.beginPath(); floor.moveTo(0, FLOOR_Y); floor.lineTo(W, FLOOR_Y); floor.strokePath();
-
           /* Animations */
           for (const a of Object.values(ANIMS)) {
             if (!this.anims.exists(a.key)) {

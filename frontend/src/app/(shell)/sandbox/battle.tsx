@@ -349,7 +349,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
         {phase === "countdown" && (
           <motion.div className="absolute inset-0 z-30 flex flex-col items-center justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <p className="mb-6 font-mono text-[10px] md:text-sm uppercase tracking-[0.4em] text-[#00d4ff]/55">BATTLE COMMENCING IN</p>
+            <p className="mb-6 font-mono text-[10px] md:text-sm uppercase tracking-[0.4em] text-[#00d4ff]/55">BATTLE STARTS IN</p>
             <AnimatePresence mode="wait">
               <motion.p key={countdown}
                 className="font-mono font-bold leading-none"

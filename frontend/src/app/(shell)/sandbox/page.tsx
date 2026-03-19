@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/game-store";
 import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
+import { findOpenBattle, createBattle } from "@/lib/api";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -210,6 +212,77 @@ export default function SandboxPage() {
   const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
   const [nameInput, setNameInput]       = useState("");
 
+  /* Matchmaking state */
+  const router = useRouter();
+  const [matchmaking, setMatchmaking] = useState<Strategy | null>(null);
+  const [matchStatus, setMatchStatus] = useState<"searching" | "waiting" | "not_found">("searching");
+  const [matchTimer, setMatchTimer]   = useState(15);
+  const matchCancelled = useRef(false);
+
+  const startMatchmaking = useCallback(async (strategy: Strategy) => {
+    setMatchmaking(strategy);
+    setMatchStatus("searching");
+    setMatchTimer(15);
+    matchCancelled.current = false;
+
+    const playerId = "player-" + Math.random().toString(36).slice(2, 8);
+
+    try {
+      // Check for an open room first
+      const { room } = await findOpenBattle();
+      if (matchCancelled.current) return;
+      if (room) {
+        router.push(`/battle/${room.room_id}`);
+        return;
+      }
+
+      // No open room — create one and wait
+      setMatchStatus("waiting");
+      const created = await createBattle(playerId, playerName);
+      if (matchCancelled.current) return;
+
+      // Poll for a second player joining
+      const roomId = created.room_id;
+      const start = Date.now();
+      const poll = async () => {
+        if (matchCancelled.current) return;
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        setMatchTimer(Math.max(0, 15 - elapsed));
+
+        if (elapsed >= 15) {
+          setMatchStatus("not_found");
+          return;
+        }
+
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/battles/${roomId}`);
+          const data = await res.json();
+          if (matchCancelled.current) return;
+          if (data.player2) {
+            router.push(`/battle/${roomId}`);
+            return;
+          }
+        } catch { /* ignore */ }
+
+        setTimeout(poll, 2000);
+      };
+      poll();
+    } catch {
+      if (!matchCancelled.current) setMatchStatus("not_found");
+    }
+  }, [playerName, router]);
+
+  function cancelMatchmaking() {
+    matchCancelled.current = true;
+    setMatchmaking(null);
+  }
+
+  function fightBot() {
+    const strategy = matchmaking;
+    setMatchmaking(null);
+    if (strategy) setBattleTarget(strategy);
+  }
+
   /* Builder state */
   const [building, setBuilding]           = useState(false);
   const [editingIndex, setEditingIndex]   = useState<number | null>(null);
@@ -399,6 +472,55 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         )}
       </AnimatePresence>
 
+      {/* ── Matchmaking overlay ── */}
+      <AnimatePresence>
+        {matchmaking && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ background: "rgba(6,6,14,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
+            <motion.div className="w-full max-w-sm md:max-w-md px-8 py-12 text-center"
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
+
+              {matchStatus !== "not_found" && (
+                <>
+                  <div className="mx-auto mb-6 h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-2 border-[#ff9f0a] border-t-transparent" />
+                  <p className="mb-2 font-mono text-xl md:text-2xl font-bold text-white">
+                    {matchStatus === "searching" ? "SEARCHING..." : "WAITING FOR OPPONENT"}
+                  </p>
+                  <p className="mb-1 font-mono text-sm md:text-base text-white/40">
+                    {matchStatus === "searching" ? "Looking for open rooms" : `Time remaining: ${matchTimer}s`}
+                  </p>
+                  <p className="mb-8 font-mono text-xs md:text-sm text-white/25">
+                    Strategy: {matchmaking.name}
+                  </p>
+                </>
+              )}
+
+              {matchStatus === "not_found" && (
+                <>
+                  <div className="mx-auto mb-6 font-mono text-4xl md:text-5xl text-white/20">⚔</div>
+                  <p className="mb-2 font-mono text-xl md:text-2xl font-bold text-white">NO PLAYERS FOUND</p>
+                  <p className="mb-8 font-mono text-sm md:text-base text-white/40">
+                    No opponents available right now. Fight the A.I. instead?
+                  </p>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={fightBot}
+                    className="mb-3 w-full rounded-xl border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 py-3.5 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20">
+                    ⚔ FIGHT A.I. BOT
+                  </motion.button>
+                </>
+              )}
+
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                onClick={cancelMatchmaking}
+                className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3 md:py-3.5 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-white/40 transition-all hover:bg-white/[0.06]">
+                CANCEL
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Battle arena overlay ── */}
       <AnimatePresence>
         {battleTarget && (
@@ -455,7 +577,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               onDelete={() => deleteStrategy(i)}
               onEdit={() => openBuilder(i)}
               onTest={() => openTest(s, i)}
-              onBattle={() => setBattleTarget(s)}
+              onBattle={() => startMatchmaking(s)}
             />
           ))}
         </div>
