@@ -722,6 +722,93 @@ def get_player_battle_history(player_name: str, limit: int = 20):
 
 
 # ---------------------------------------------------------------------------
+# Presence WebSocket — tracks online players & battle requests
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+# {player_id: {"username": str, "ws": WebSocket, "in_battle": bool}}
+_online_players: dict[str, dict] = {}
+
+
+async def _broadcast_player_list():
+    """Send updated player list to all connected clients."""
+    player_list = [
+        {"id": p_id, "username": info["username"], "in_battle": info["in_battle"]}
+        for p_id, info in _online_players.items()
+    ]
+    msg = _json.dumps({"type": "player_list", "players": player_list})
+    for info in list(_online_players.values()):
+        try:
+            await info["ws"].send_text(msg)
+        except Exception:
+            pass
+
+
+@app.websocket("/ws/presence")
+async def presence_websocket(websocket: WebSocket):
+    await websocket.accept()
+    player_id: str | None = None
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            data = _json.loads(raw)
+            msg_type = data.get("type", "")
+
+            if msg_type == "register":
+                player_id = data.get("player_id", "")
+                username = data.get("username", "Player")
+                _online_players[player_id] = {"username": username, "ws": websocket, "in_battle": False}
+                await _broadcast_player_list()
+
+            elif msg_type == "challenge":
+                target_id = data.get("target_id", "")
+                target = _online_players.get(target_id)
+                if target and not target["in_battle"]:
+                    sender = _online_players.get(player_id or "")
+                    await target["ws"].send_text(_json.dumps({
+                        "type": "battle_request",
+                        "from_id": player_id,
+                        "from_username": sender["username"] if sender else "Unknown",
+                    }))
+
+            elif msg_type == "accept_challenge":
+                challenger_id = data.get("from_id", "")
+                challenger = _online_players.get(challenger_id)
+                accepter = _online_players.get(player_id or "")
+                if challenger and accepter:
+                    # Create a battle room
+                    room = create_room(challenger_id, challenger["username"])
+                    room.player2 = Player(player_id=player_id or "", username=accepter["username"])
+                    # Mark both as in battle
+                    challenger["in_battle"] = True
+                    accepter["in_battle"] = True
+                    room_msg = _json.dumps({"type": "go_to_battle", "room_id": room.room_id})
+                    await challenger["ws"].send_text(room_msg)
+                    await accepter["ws"].send_text(room_msg)
+                    await _broadcast_player_list()
+
+            elif msg_type == "decline_challenge":
+                challenger_id = data.get("from_id", "")
+                challenger = _online_players.get(challenger_id)
+                if challenger:
+                    await challenger["ws"].send_text(_json.dumps({
+                        "type": "challenge_declined",
+                        "by_username": _online_players.get(player_id or "", {}).get("username", "Unknown"),
+                    }))
+
+            elif msg_type == "back_from_battle":
+                if player_id and player_id in _online_players:
+                    _online_players[player_id]["in_battle"] = False
+                    await _broadcast_player_list()
+
+    except WebSocketDisconnect:
+        if player_id and player_id in _online_players:
+            del _online_players[player_id]
+            await _broadcast_player_list()
+
+
+# ---------------------------------------------------------------------------
 # Battle WebSocket
 # ---------------------------------------------------------------------------
 

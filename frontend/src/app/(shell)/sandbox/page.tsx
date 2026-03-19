@@ -9,6 +9,7 @@ import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
 import { quickmatch, getBattle } from "@/lib/api";
+import { createPresenceSocket, type OnlinePlayer, type PresenceMessage } from "@/lib/ws";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -220,6 +221,36 @@ export default function SandboxPage() {
   const [showBotOption, setShowBotOption] = useState(false);
   const matchCancelled = useRef(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* Presence / online players */
+  const [worldOpen, setWorldOpen] = useState(false);
+  const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
+  const [battleRequest, setBattleRequest] = useState<{ from_id: string; from_username: string } | null>(null);
+  const [challengeSent, setChallengeSent] = useState<string | null>(null);
+  const presenceRef = useRef<ReturnType<typeof createPresenceSocket> | null>(null);
+
+  useEffect(() => {
+    if (!playerName) return;
+    const playerId = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+    const ps = createPresenceSocket(playerId, playerName, (msg: PresenceMessage) => {
+      switch (msg.type) {
+        case "player_list":
+          setOnlinePlayers(msg.players.filter((p) => p.id !== playerId));
+          break;
+        case "battle_request":
+          setBattleRequest({ from_id: msg.from_id, from_username: msg.from_username });
+          break;
+        case "go_to_battle":
+          router.push(`/battle/${msg.room_id}`);
+          break;
+        case "challenge_declined":
+          setChallengeSent(null);
+          break;
+      }
+    });
+    presenceRef.current = ps;
+    return () => ps.close();
+  }, [playerName, router]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
@@ -531,6 +562,32 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         )}
       </AnimatePresence>
 
+      {/* ── Incoming battle request ── */}
+      <AnimatePresence>
+        {battleRequest && (
+          <motion.div className="fixed bottom-6 right-6 z-50" initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}>
+            <div className="rounded-xl border border-[#ff9f0a]/40 bg-[#0a0a14]/95 px-5 py-4 shadow-2xl backdrop-blur-sm" style={{ minWidth: 260 }}>
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-[#ff9f0a]/60">INCOMING CHALLENGE</p>
+              <p className="mb-3 font-mono text-sm font-bold text-white">
+                <span className="text-[#ff9f0a]">{battleRequest.from_username}</span> wants to battle!
+              </p>
+              <div className="flex gap-2">
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => { presenceRef.current?.send({ type: "accept_challenge", from_id: battleRequest.from_id }); setBattleRequest(null); }}
+                  className="flex-1 rounded-lg bg-[#30d158] py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-[#3bde63]">
+                  ACCEPT
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => { presenceRef.current?.send({ type: "decline_challenge", from_id: battleRequest.from_id }); setBattleRequest(null); }}
+                  className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] py-2 font-mono text-xs font-bold uppercase text-white/50 transition-all hover:bg-white/[0.08]">
+                  DECLINE
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Battle arena overlay ── */}
       <AnimatePresence>
         {battleTarget && (
@@ -562,11 +619,59 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       {/* List header */}
       <div className="mb-4 flex items-center justify-between">
         <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
-        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
-          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
-          <span className="text-base leading-none">+</span> NEW STRATEGY
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setWorldOpen(!worldOpen)}
+            className="flex items-center gap-2 rounded-lg border border-[#30d158]/40 bg-[#30d158]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#30d158] opacity-75" /><span className="inline-flex h-2 w-2 rounded-full bg-[#30d158]" /></span>
+            WORLD{onlinePlayers.length > 0 && ` (${onlinePlayers.length})`}
+          </motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
+            className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+            <span className="text-base leading-none">+</span> NEW STRATEGY
+          </motion.button>
+        </div>
       </div>
+
+      {/* Online players panel */}
+      <AnimatePresence>
+        {worldOpen && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+            className="mb-6 overflow-hidden rounded-xl border border-[#30d158]/20 bg-[#30d158]/[0.03]">
+            <div className="px-5 py-4">
+              <div className="mb-3 flex items-center gap-3">
+                <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-[#30d158]">ONLINE PLAYERS</span>
+                <div className="h-px flex-1 bg-[#30d158]/15" />
+              </div>
+              {onlinePlayers.length === 0 ? (
+                <p className="py-4 text-center font-mono text-xs text-white/30">No other players online right now</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {onlinePlayers.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`h-2 w-2 rounded-full ${p.in_battle ? "bg-[#ff9f0a]" : "bg-[#30d158]"}`} />
+                        <span className="font-mono text-xs md:text-sm font-semibold text-white">{p.username}</span>
+                        {p.in_battle && <span className="font-mono text-[9px] uppercase text-[#ff9f0a]/60">in battle</span>}
+                      </div>
+                      {!p.in_battle && (
+                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                          disabled={challengeSent === p.id}
+                          onClick={() => {
+                            presenceRef.current?.send({ type: "challenge", target_id: p.id });
+                            setChallengeSent(p.id);
+                          }}
+                          className="rounded-md border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-3 py-1 font-mono text-[10px] md:text-xs font-bold uppercase text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20 disabled:opacity-40">
+                          {challengeSent === p.id ? "SENT" : "CHALLENGE"}
+                        </motion.button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Strategy grid */}
       {strategies.length === 0 ? (
