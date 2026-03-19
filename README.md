@@ -14,6 +14,7 @@ A gamified financial education platform where players learn investing by buildin
 |-------|-----------|
 | Backend | Python · FastAPI · Uvicorn |
 | Frontend | TypeScript · Next.js · Tailwind CSS · Framer Motion |
+| Battle Graphics | Phaser 3 (WebGL, procedural knights, tweens, particle FX) |
 | State | Zustand |
 | Charts | TradingView Lightweight Charts |
 | Real-time | FastAPI WebSockets |
@@ -83,13 +84,18 @@ FRONTEND_URL=http://localhost:3000
 STARTHACK26/
 ├── backend/
 │   ├── main.py              # FastAPI routes, WebSocket, AI endpoints, CORS
+│   ├── auth.py              # Authentication helpers
 │   ├── battle.py            # Battle room state machine (WAITING → BUILDING → SIMULATING → FINISHED)
+│   ├── ticker.py            # Ticker / market data helpers
 │   └── data/
-│       └── historical.py    # Asset definitions, 4 historical scenarios, simulate_portfolio()
+│       ├── historical.py    # Asset definitions, 4 historical scenarios, simulate_portfolio()
+│       ├── gbm.py           # Geometric Brownian Motion simulation
+│       └── *.csv            # Market data (Bonds, Equities, FX, Gold, SMI, DJIA)
 ├── frontend/
 │   └── src/
 │       ├── app/             # Pages: / (landing), /sandbox, /battle, /battle/[roomId]
-│       ├── components/      # asset-card, portfolio-builder, performance-chart, ai-insight, ...
+│       │   └── (shell)/     # Authenticated shell: sandbox, battle, clans, dashboard, review
+│       ├── components/      # asset-card, portfolio-builder, performance-chart, ai-insight, sidebar, …
 │       ├── lib/             # api.ts, ws.ts, types.ts, constants.ts
 │       └── store/           # Zustand game store (player + allocation)
 ├── db/

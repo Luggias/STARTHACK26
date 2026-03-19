@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Strategy } from "@/lib/types";
+import { BattleStage } from "./battle-stage";
 
 /* ── Simulation ── */
 const SIM: Record<string, { mu: number; sigma: number }> = {
@@ -54,178 +55,13 @@ function stepPV(pv: number, alloc: Record<string, number>, randn: () => number, 
   return Math.max(10, pv * (1 + r));
 }
 
-/* ═══════════════════════════════
-   BULL — cartoon reference style: heavy barrel body, head low charging,
-   large cream horns curving UP, big protruding snout, breath + dust puffs
-═══════════════════════════════ */
-function Bull({ isHit }: { isHit: boolean }) {
-  const c = "#00d4ff";
-  const horn = "#e8d89a"; // cream/ivory horns matching cartoon
-  return (
-    <svg viewBox="0 0 235 175" fill="none"
-      style={{ overflow: "visible", filter: isHit ? "brightness(4) saturate(0)" : "none", transition: "filter 0.15s" }}>
-
-      {/* Tail — high curl at back-left, looping upward */}
-      <path d="M 26 90 C 8 68 5 44 18 36 C 30 28 44 40 38 56"
-        stroke={c} strokeWidth="9" strokeLinecap="round" fill="none" />
-      <circle cx="38" cy="56" r="9" fill={c} />
-
-      {/* Main body — massive heavy barrel */}
-      <ellipse cx="96" cy="118" rx="74" ry="46" fill={c} />
-
-      {/* Shoulder hump — large, elevated above back */}
-      <ellipse cx="140" cy="88" rx="50" ry="44" fill={c} />
-
-      {/* Neck — very thick, steep forward-down angle */}
-      <path d="M 160 94 L 190 126" stroke={c} strokeWidth="34" strokeLinecap="round" fill="none" />
-
-      {/* Head — pushed forward and low (charging pose) */}
-      <ellipse cx="196" cy="132" rx="36" ry="28" fill={c} />
-
-      {/* Horns — large cream/ivory, curving UP from top of head (key cartoon feature) */}
-      <path d="M 174 112 C 166 84 180 60 200 62 C 214 64 218 84 204 104"
-        fill={horn} />
-      <path d="M 184 112 C 176 86 188 64 206 66 C 218 68 220 86 208 106"
-        fill={horn} opacity={0.55} />
-
-      {/* Ear — small, pinned back between horn and neck */}
-      <ellipse cx="168" cy="120" rx="10" ry="8" fill={c} />
-      <ellipse cx="168" cy="120" rx="5.5" ry="4" fill="rgba(0,0,0,0.28)" />
-
-      {/* Eye — small, fierce */}
-      <circle cx="186" cy="126" r="6" fill="rgba(0,0,0,0.9)" />
-      <circle cx="187" cy="125" r="2.2" fill="white" opacity={0.38} />
-
-      {/* Muzzle — large protruding snout like cartoon */}
-      <ellipse cx="218" cy="140" rx="16" ry="13" fill={c} opacity={0.82} />
-
-      {/* Nostrils — two oval holes */}
-      <ellipse cx="213" cy="136" rx="5.5" ry="4" fill="rgba(0,0,0,0.65)" />
-      <ellipse cx="222" cy="136" rx="5" ry="4" fill="rgba(0,0,0,0.65)" />
-
-      {/* Breath puffs from nostrils — cartoon charging detail */}
-      <circle cx="228" cy="148" r="7" fill="white" opacity={0.58} />
-      <circle cx="236" cy="155" r="5" fill="white" opacity={0.40} />
-      <circle cx="230" cy="162" r="3.5" fill="white" opacity={0.26} />
-
-      {/* Legs — four stocky pillars */}
-      {/* Back pair */}
-      <rect x="30" y="140" width="20" height="30" rx="9" fill={c} />
-      <rect x="58" y="142" width="20" height="28" rx="9" fill={c} />
-      {/* Front pair */}
-      <rect x="124" y="142" width="20" height="28" rx="9" fill={c} />
-      <rect x="152" y="140" width="20" height="30" rx="9" fill={c} />
-
-      {/* Hooves — dark caps */}
-      <rect x="28" y="160" width="24" height="11" rx="5" fill="rgba(0,0,0,0.48)" />
-      <rect x="56" y="161" width="24" height="10" rx="4" fill="rgba(0,0,0,0.40)" />
-      <rect x="122" y="161" width="24" height="10" rx="4" fill="rgba(0,0,0,0.40)" />
-      <rect x="150" y="160" width="24" height="11" rx="5" fill="rgba(0,0,0,0.48)" />
-
-      {/* Dust puffs under front hooves — charging detail */}
-      <circle cx="134" cy="172" r="5.5" fill="white" opacity={0.36} />
-      <circle cx="162" cy="172" r="5" fill="white" opacity={0.28} />
-      <circle cx="148" cy="175" r="3.5" fill="white" opacity={0.20} />
-    </svg>
-  );
-}
-
-/* ═══════════════════════════════
-   BEAR — standing upright on two legs, BOTH arms raised wide, snarling
-   Reference: cartoon financial bear, bipedal, arms spread, teeth bared
-═══════════════════════════════ */
-function Bear({ isHit }: { isHit: boolean }) {
-  const c = "#ff453a";
-  return (
-    <svg viewBox="0 0 160 195" fill="none"
-      style={{ overflow: "visible", filter: isHit ? "brightness(4) saturate(0)" : "none", transition: "filter 0.15s" }}>
-      {/* Body — upright, round, heavy */}
-      <ellipse cx="80" cy="134" rx="52" ry="52" fill={c} />
-      {/* Belly / chest lighter patch */}
-      <ellipse cx="80" cy="140" rx="34" ry="38" fill="white" opacity={0.12} />
-
-      {/* Left arm — sweeps up-left from shoulder */}
-      <path d="M 42 116 C 28 94 16 74 10 56" stroke={c} strokeWidth="24" strokeLinecap="round" fill="none" />
-      {/* Left paw */}
-      <circle cx="10" cy="52" r="18" fill={c} />
-      {/* Left claws — pointing upward */}
-      <path d="M 2 40 C -1 30 0 20 2 14" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-      <path d="M 9 37 C 8 27 9 17 11 11" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-      <path d="M 17 38 C 17 28 19 18 21 12" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-
-      {/* Right arm — sweeps up-right */}
-      <path d="M 118 116 C 132 94 144 74 150 56" stroke={c} strokeWidth="24" strokeLinecap="round" fill="none" />
-      {/* Right paw */}
-      <circle cx="150" cy="52" r="18" fill={c} />
-      {/* Right claws — pointing upward */}
-      <path d="M 142 40 C 139 30 140 20 142 14" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-      <path d="M 150 37 C 149 27 150 17 152 11" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-      <path d="M 158 38 C 158 28 160 18 162 12" stroke={c} strokeWidth="6" strokeLinecap="round" fill="none" />
-
-      {/* Head — large round, sits on top of body */}
-      <circle cx="80" cy="72" r="40" fill={c} />
-
-      {/* Ears */}
-      <circle cx="52" cy="38" r="16" fill={c} />
-      <circle cx="52" cy="38" r="9" fill="rgba(0,0,0,0.2)" />
-      <circle cx="108" cy="38" r="16" fill={c} />
-      <circle cx="108" cy="38" r="9" fill="rgba(0,0,0,0.2)" />
-
-      {/* Muzzle — protruding snout */}
-      <ellipse cx="80" cy="86" rx="24" ry="18" fill={c} />
-      <ellipse cx="80" cy="85" rx="17" ry="11" fill="rgba(0,0,0,0.14)" />
-
-      {/* Nose */}
-      <ellipse cx="80" cy="76" rx="9" ry="6" fill="rgba(0,0,0,0.82)" />
-
-      {/* Eyes — fierce wide-open */}
-      <circle cx="62" cy="64" r="7" fill="rgba(0,0,0,0.9)" />
-      <circle cx="63" cy="63" r="2.5" fill="white" opacity={0.42} />
-      <circle cx="98" cy="64" r="7" fill="rgba(0,0,0,0.9)" />
-      <circle cx="99" cy="63" r="2.5" fill="white" opacity={0.42} />
-
-      {/* Snarling teeth — white rectangles visible below muzzle */}
-      <rect x="62" y="92" width="8" height="10" rx="2" fill="white" opacity={0.85} />
-      <rect x="73" y="93" width="8" height="12" rx="2" fill="white" opacity={0.85} />
-      <rect x="84" y="93" width="8" height="12" rx="2" fill="white" opacity={0.85} />
-      <rect x="95" y="92" width="8" height="10" rx="2" fill="white" opacity={0.85} />
-
-      {/* Hind legs */}
-      <rect x="50" y="174" width="24" height="22" rx="9" fill={c} />
-      <rect x="86" y="174" width="24" height="22" rx="9" fill={c} />
-    </svg>
-  );
-}
-
-/* ── Clash spark ── */
-function ClashSpark() {
-  return (
-    <motion.div
-      className="pointer-events-none"
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: [0, 1.6, 1.1, 0], opacity: [0, 1, 0.9, 0] }}
-      transition={{ duration: 0.55, ease: "easeOut" }}
-    >
-      <svg viewBox="0 0 80 80" className="w-14 h-14 sm:w-20 sm:h-20">
-        {[0, 30, 60, 90, 120, 150, 210, 270, 330].map((deg, i) => {
-          const r = i % 3 === 0 ? 34 : 22;
-          const x = 40 + Math.cos((deg * Math.PI) / 180) * r;
-          const y = 40 + Math.sin((deg * Math.PI) / 180) * r;
-          return <line key={deg} x1="40" y1="40" x2={x} y2={y} stroke="white" strokeWidth={i % 3 === 0 ? 2.5 : 1.5} opacity={0.92} />;
-        })}
-        <circle cx="40" cy="40" r="7" fill="white" />
-        <circle cx="40" cy="40" r="12" fill="white" opacity={0.25} />
-      </svg>
-    </motion.div>
-  );
-}
 
 /* ── Chart with time axis + value axis ── */
 function BattleChart({ pH, cH }: { pH: number[]; cH: number[] }) {
-  if (pH.length < 2) return <div className="w-full" style={{ height: 140 }} />;
+  if (pH.length < 2) return <div className="w-full" style={{ height: 112 }} />;
 
   /* Layout constants */
-  const VW = 540; const VH = 120;
+  const VW = 540; const VH = 96;
   const ML = 50; const MR = 8; const MT = 6; const MB = 22;
   const CW = VW - ML - MR; const CH = VH - MT - MB;
 
@@ -387,26 +223,33 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
     return () => clearTimeout(t);
   }, [phase, countdown]);
 
-  /* Combat rhythm — clash exchange every ~2.2s during fighting */
+  /* Combat rhythm — both knights lunge simultaneously, swords clash, loser staggers */
   useEffect(() => {
     if (phase !== "fighting") return;
     let cancelled = false;
     const exchange = () => {
       if (cancelled) return;
-      /* Player attacks first */
-      setPAttack(true);
-      setTimeout(() => { if (!cancelled) setPAttack(false); }, 340);
-      /* CPU attacks slightly after */
-      setTimeout(() => { if (!cancelled) setCAttack(true); }, 180);
-      setTimeout(() => { if (!cancelled) setCAttack(false); }, 520);
-      /* Clash spark at intersection */
-      setTimeout(() => { if (!cancelled) setClashing(true); }, 260);
-      setTimeout(() => { if (!cancelled) setClashing(false); }, 260 + 20); // re-key each call
-      /* Winner attacks faster — tempo shifts with momentum */
+      /* Both lunge at the same time */
+      setPAttack(true); setCAttack(true);
+      /* Swords meet in center */
+      setTimeout(() => { if (!cancelled) setClashing(true); }, 150);
+      setTimeout(() => { if (!cancelled) setClashing(false); }, 151);
+      /* Loser takes the hit */
+      setTimeout(() => {
+        if (!cancelled) {
+          if (pWinningRef.current) setCHit(true);
+          else setPHit(true);
+        }
+      }, 270);
+      /* Reset all — knights pull back */
+      setTimeout(() => {
+        if (!cancelled) { setPAttack(false); setCAttack(false); setPHit(false); setCHit(false); }
+      }, 500);
+      /* Next exchange: winner presses faster */
       const delay = pWinningRef.current
-        ? 1300 + Math.random() * 500   // bull ahead: aggressive tempo
-        : 2100 + Math.random() * 700;  // bull behind: desperate, slower
-      setTimeout(exchange, delay);
+        ? 1200 + Math.random() * 400
+        : 1800 + Math.random() * 600;
+      setTimeout(exchange, 500 + delay);
     };
     exchange();
     return () => { cancelled = true; };
@@ -464,7 +307,6 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
     s.pPV = stepPV(s.pPV, strategy.allocation, s.pRNG.randn, shocks, mult);
     s.cPV = stepPV(s.cPV, CPU_ALLOC, s.cRNG.randn, shocks, 1.0);
     s.month++; s.eventIdx++; s.pendingShocks = null;
-    /* Flash the knight that lost value */
     if (s.pPV < prevP) { setPHit(true); setTimeout(() => setPHit(false), 600); }
     if (s.cPV < prevC) { setCHit(true); setTimeout(() => setCHit(false), 600); }
     setPH(h => [...h, s.pPV]);
@@ -519,12 +361,12 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
             <div className="mt-8 flex items-center gap-6">
               <div className="text-right">
                 <p className="font-mono text-xs font-bold text-[#00d4ff]">{playerName}</p>
-                <p className="font-mono text-[10px] text-[#00d4ff]/50">THE BULL</p>
+                <p className="font-mono text-[10px] text-[#00d4ff]/50">THE KNIGHT</p>
               </div>
               <span className="font-mono text-sm text-white/20">VS</span>
               <div>
                 <p className="font-mono text-xs font-bold text-[#ff453a]">A.I. FUND</p>
-                <p className="font-mono text-[10px] text-[#ff453a]/50">THE BEAR</p>
+                <p className="font-mono text-[10px] text-[#ff453a]/50">THE KNIGHT</p>
               </div>
             </div>
           </motion.div>
@@ -615,7 +457,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
           <div className="mb-1 flex items-center justify-between">
             <div>
               <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#00d4ff]">{playerName}</span>
-              <span className="ml-2 font-mono text-[9px] text-[#00d4ff]/40">THE BULL</span>
+              <span className="ml-2 font-mono text-[9px] text-[#00d4ff]/40">THE KNIGHT</span>
             </div>
             <span className="font-mono text-sm font-bold tabular-nums" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</span>
           </div>
@@ -633,7 +475,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
             <span className="font-mono text-sm font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
             <div className="text-right">
               <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff453a]">A.I. FUND</span>
-              <span className="ml-2 font-mono text-[9px] text-[#ff453a]/40">THE BEAR</span>
+              <span className="ml-2 font-mono text-[9px] text-[#ff453a]/40">THE KNIGHT</span>
             </div>
           </div>
           <motion.div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]"
@@ -647,71 +489,17 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
         </div>
       </div>
 
-      {/* ── Arena floor: knights + chart ── */}
+      {/* ── Arena floor: Pixi battle canvas + chart ── */}
       <div className="flex flex-1 flex-col min-h-0">
-        {/* Knights fighting area */}
-        <div className="relative flex flex-1 items-end justify-around px-4 pt-4">
-
-          {/* Player — Bull */}
-          <motion.div className="relative w-36 sm:w-48"
-            animate={{
-              x: pAttack ? 36 : (pWinning ? 12 + dominance * 10 : -6),
-              y: pAttack ? 0 : (pWinning ? -6 - dominance * 8 : 6 + dominance * 6),
-              scale: pAttack ? 1.14 : (pWinning ? 1.02 + dominance * 0.06 : 0.90 - dominance * 0.04),
-              rotate: pAttack ? -10 : 0,
-            }}
-            transition={{ duration: pAttack ? 0.14 : 1.1, ease: pAttack ? "easeOut" : "easeInOut" }}
-            style={{
-              overflow: "visible",
-              filter: `drop-shadow(0 0 ${pHit ? "28px #ff453a" : pWinning ? `${14 + dominance * 18}px #00d4ff60` : "6px #ffffff10"})`,
-              transition: "filter 0.3s",
-            }}>
-            {/* Tremble when desperate */}
-            <motion.div
-              animate={pDesperate && !pWinning ? { x: [-2, 2, -2, 2, 0] } : { x: 0 }}
-              transition={pDesperate && !pWinning ? { duration: 0.45, repeat: Infinity } : {}}>
-              <Bull isHit={pHit} />
-            </motion.div>
-          </motion.div>
-
-          {/* Center — VS + clash effect, drifts toward the loser */}
-          <motion.div className="relative flex flex-col items-center justify-end pb-4 gap-1"
-            animate={{ x: pWinning ? dominance * 28 : -dominance * 28 }}
-            transition={{ duration: 1.4, ease: "easeInOut" }}>
-            <AnimatePresence>
-              {clashing && <ClashSpark key={Date.now()} />}
-            </AnimatePresence>
-            <motion.span className="font-mono text-lg font-bold text-white/12"
-              animate={{ opacity: clashing ? 0 : 1 }} transition={{ duration: 0.1 }}>
-              VS
-            </motion.span>
-            <motion.span className="font-mono text-[9px] uppercase tracking-widest text-white/20"
-              animate={{ opacity: [0.2, 0.5, 0.2] }} transition={{ duration: 2.4, repeat: Infinity }}>
-              {strategy.name}
-            </motion.span>
-          </motion.div>
-
-          {/* CPU — Bear */}
-          <motion.div className="relative w-28 sm:w-38"
-            animate={{
-              x: cAttack ? -36 : (!pWinning ? -12 - dominance * 10 : 6),
-              y: cAttack ? 0 : (!pWinning ? -6 - dominance * 8 : 6 + dominance * 6),
-              scale: cAttack ? 1.14 : (!pWinning ? 1.02 + dominance * 0.06 : 0.90 - dominance * 0.04),
-              rotate: cAttack ? 8 : 0,
-            }}
-            transition={{ duration: cAttack ? 0.14 : 1.1, ease: cAttack ? "easeOut" : "easeInOut" }}
-            style={{
-              overflow: "visible",
-              filter: `drop-shadow(0 0 ${cHit ? "28px #00d4ff" : !pWinning ? `${14 + dominance * 18}px #ff453a60` : "6px #ffffff10"})`,
-              transition: "filter 0.3s",
-            }}>
-            {/* Tremble when desperate */}
-            <motion.div
-              animate={cDesperate && !pWinning ? { x: [2, -2, 2, -2, 0] } : { x: 0 }}
-              transition={cDesperate && !pWinning ? { duration: 0.45, repeat: Infinity } : {}}>
-              <Bear isHit={cHit} />
-            </motion.div>
-          </motion.div>
+        {/* WebGL battle stage */}
+        <div className="relative flex-1 min-h-0">
+          <BattleStage
+            pAttack={pAttack} cAttack={cAttack}
+            pHit={pHit}       cHit={cHit}
+            pWinning={pWinning}
+            clashing={clashing}
+            strategyName={strategy.name}
+          />
         </div>
 
         {/* Chart */}

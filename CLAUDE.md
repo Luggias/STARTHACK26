@@ -13,6 +13,7 @@ Team: Constantin Salzer · Lukas Kapferer · Jamie Maier · Dorian Markies
 - **Frontend:** TypeScript · Next.js + Tailwind CSS + Framer Motion (`frontend/`) — run with `cd frontend && npm run dev`
 - **State Management:** Zustand
 - **Charts:** TradingView Lightweight Charts
+- **Battle Graphics:** Phaser 3 (WebGL, procedural knights, tween animations, particle FX)
 - **Database:** Supabase (PostgreSQL) — client in `db/database.py`
 - **AI:** Anthropic Claude API (educational insights)
 - **Real-time:** FastAPI WebSockets (battle mode)
@@ -23,12 +24,17 @@ Team: Constantin Salzer · Lukas Kapferer · Jamie Maier · Dorian Markies
 STARTHACK26/
 ├── backend/
 │   ├── main.py              # FastAPI routes, endpoints, WebSocket, CORS
-│   ├── data/
-│   │   └── historical.py    # Historical market data + simulate_portfolio()
-│   └── battle.py            # WebSocket battle room state machine
+│   ├── auth.py              # Authentication helpers
+│   ├── battle.py            # WebSocket battle room state machine
+│   ├── ticker.py            # Ticker / market data helpers
+│   └── data/
+│       ├── historical.py    # Historical market data + simulate_portfolio()
+│       ├── gbm.py           # Geometric Brownian Motion simulation
+│       └── *.csv            # Market data (Bonds, Equities, FX, Gold, SMI, DJIA)
 ├── frontend/                # Next.js App Router
-│   ├── src/app/             # Pages: /, /sandbox, /battle, /battle/[roomId]
-│   ├── src/components/      # Reusable: portfolio-builder, asset-card, charts, ai-insight
+│   ├── src/app/             # Pages: / (landing), /sandbox, /battle, /battle/[roomId]
+│   │   └── (shell)/         # Authenticated shell: sandbox/, battle/, clans/, dashboard/, review/
+│   ├── src/components/      # Reusable: portfolio-builder, asset-card, charts, ai-insight, sidebar, …
 │   ├── src/lib/             # api.ts, ws.ts, constants.ts, types.ts
 │   └── src/store/           # Zustand game store
 ├── db/database.py           # Supabase client (import db from here)
