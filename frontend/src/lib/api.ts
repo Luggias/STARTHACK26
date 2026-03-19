@@ -284,3 +284,53 @@ export async function getClanLeaderboard(clanId: string): Promise<{ leaderboard:
 export async function getLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[] }> {
   return fetchJson("/leaderboard");
 }
+
+// ---------------------------------------------------------------------------
+// Presence
+// ---------------------------------------------------------------------------
+
+export async function presenceHeartbeat(
+  playerId: string,
+  username: string,
+): Promise<{ ok?: boolean; go_to_battle?: string }> {
+  return fetchJson("/presence/heartbeat", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, username }),
+  });
+}
+
+export async function presenceOnline(): Promise<{
+  players: { id: string; username: string; in_battle: boolean }[];
+}> {
+  return fetchJson("/presence/online");
+}
+
+export async function presenceChallenge(fromId: string, targetId: string): Promise<void> {
+  await fetchJson("/presence/challenge", {
+    method: "POST",
+    body: JSON.stringify({ from_id: fromId, target_id: targetId }),
+  });
+}
+
+export async function presenceGetChallenges(
+  playerId: string,
+): Promise<{ challenge: { from_id: string; from_username: string } | null }> {
+  return fetchJson(`/presence/challenges/${playerId}`);
+}
+
+export async function presenceAccept(
+  playerId: string,
+  fromId: string,
+): Promise<{ room_id: string }> {
+  return fetchJson("/presence/accept", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, from_id: fromId }),
+  });
+}
+
+export async function presenceDecline(playerId: string, fromId: string): Promise<void> {
+  await fetchJson("/presence/decline", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, from_id: fromId }),
+  });
+}

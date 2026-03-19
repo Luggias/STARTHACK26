@@ -722,90 +722,133 @@ def get_player_battle_history(player_name: str, limit: int = 20):
 
 
 # ---------------------------------------------------------------------------
-# Presence WebSocket — tracks online players & battle requests
+# Presence (REST) — tracks online players & battle challenges
 # ---------------------------------------------------------------------------
 
-import json as _json
-
-# {player_id: {"username": str, "ws": WebSocket, "in_battle": bool}}
+# {player_id: {"username": str, "last_seen": float, "in_battle": bool}}
 _online_players: dict[str, dict] = {}
+# {target_id: {"from_id": str, "from_username": str, "room_id": str | None, "ts": float}}
+_pending_challenges: dict[str, dict] = {}
+
+PRESENCE_TIMEOUT = 8  # seconds before a player is considered offline
 
 
-async def _broadcast_player_list():
-    """Send updated player list to all connected clients."""
-    player_list = [
-        {"id": p_id, "username": info["username"], "in_battle": info["in_battle"]}
-        for p_id, info in _online_players.items()
-    ]
-    msg = _json.dumps({"type": "player_list", "players": player_list})
-    for info in list(_online_players.values()):
-        try:
-            await info["ws"].send_text(msg)
-        except Exception:
-            pass
+def _clean_stale_players():
+    """Remove players who haven't sent a heartbeat recently."""
+    now = time.time()
+    stale = [pid for pid, info in _online_players.items() if now - info["last_seen"] > PRESENCE_TIMEOUT]
+    for pid in stale:
+        del _online_players[pid]
+        _pending_challenges.pop(pid, None)
 
 
-@app.websocket("/ws/presence")
-async def presence_websocket(websocket: WebSocket):
-    await websocket.accept()
-    player_id: str | None = None
-    try:
-        while True:
-            raw = await websocket.receive_text()
-            data = _json.loads(raw)
-            msg_type = data.get("type", "")
+class HeartbeatReq(BaseModel):
+    player_id: str
+    username: str
 
-            if msg_type == "register":
-                player_id = data.get("player_id", "")
-                username = data.get("username", "Player")
-                _online_players[player_id] = {"username": username, "ws": websocket, "in_battle": False}
-                await _broadcast_player_list()
 
-            elif msg_type == "challenge":
-                target_id = data.get("target_id", "")
-                target = _online_players.get(target_id)
-                if target and not target["in_battle"]:
-                    sender = _online_players.get(player_id or "")
-                    await target["ws"].send_text(_json.dumps({
-                        "type": "battle_request",
-                        "from_id": player_id,
-                        "from_username": sender["username"] if sender else "Unknown",
-                    }))
+@app.post("/presence/heartbeat")
+def presence_heartbeat(req: HeartbeatReq):
+    _clean_stale_players()
+    _online_players[req.player_id] = {
+        "username": req.username,
+        "last_seen": time.time(),
+        "in_battle": _online_players.get(req.player_id, {}).get("in_battle", False),
+    }
+    # Check for incoming challenge
+    challenge = _pending_challenges.get(req.player_id)
+    if challenge and challenge.get("room_id"):
+        # Accepted — return room_id and clear
+        room_id = challenge["room_id"]
+        del _pending_challenges[req.player_id]
+        return {"go_to_battle": room_id}
+    return {"ok": True}
 
-            elif msg_type == "accept_challenge":
-                challenger_id = data.get("from_id", "")
-                challenger = _online_players.get(challenger_id)
-                accepter = _online_players.get(player_id or "")
-                if challenger and accepter:
-                    # Create a battle room
-                    room = create_room(challenger_id, challenger["username"])
-                    room.player2 = Player(player_id=player_id or "", username=accepter["username"])
-                    # Mark both as in battle
-                    challenger["in_battle"] = True
-                    accepter["in_battle"] = True
-                    room_msg = _json.dumps({"type": "go_to_battle", "room_id": room.room_id})
-                    await challenger["ws"].send_text(room_msg)
-                    await accepter["ws"].send_text(room_msg)
-                    await _broadcast_player_list()
 
-            elif msg_type == "decline_challenge":
-                challenger_id = data.get("from_id", "")
-                challenger = _online_players.get(challenger_id)
-                if challenger:
-                    await challenger["ws"].send_text(_json.dumps({
-                        "type": "challenge_declined",
-                        "by_username": _online_players.get(player_id or "", {}).get("username", "Unknown"),
-                    }))
+@app.get("/presence/online")
+def presence_online():
+    _clean_stale_players()
+    return {
+        "players": [
+            {"id": pid, "username": info["username"], "in_battle": info["in_battle"]}
+            for pid, info in _online_players.items()
+        ]
+    }
 
-            elif msg_type == "back_from_battle":
-                if player_id and player_id in _online_players:
-                    _online_players[player_id]["in_battle"] = False
-                    await _broadcast_player_list()
 
-    except WebSocketDisconnect:
-        if player_id and player_id in _online_players:
-            del _online_players[player_id]
-            await _broadcast_player_list()
+class ChallengeReq(BaseModel):
+    from_id: str
+    target_id: str
+
+
+@app.post("/presence/challenge")
+def presence_challenge(req: ChallengeReq):
+    target = _online_players.get(req.target_id)
+    sender = _online_players.get(req.from_id)
+    if not target or not sender:
+        raise HTTPException(404, "Player not found")
+    if target.get("in_battle"):
+        raise HTTPException(400, "Player is in battle")
+    _pending_challenges[req.target_id] = {
+        "from_id": req.from_id,
+        "from_username": sender["username"],
+        "room_id": None,
+        "ts": time.time(),
+    }
+    return {"sent": True}
+
+
+@app.get("/presence/challenges/{player_id}")
+def presence_get_challenges(player_id: str):
+    challenge = _pending_challenges.get(player_id)
+    if not challenge or challenge.get("room_id"):
+        return {"challenge": None}
+    # Expire old challenges (> 30s)
+    if time.time() - challenge["ts"] > 30:
+        del _pending_challenges[player_id]
+        return {"challenge": None}
+    return {"challenge": {"from_id": challenge["from_id"], "from_username": challenge["from_username"]}}
+
+
+class AcceptReq(BaseModel):
+    player_id: str
+    from_id: str
+
+
+@app.post("/presence/accept")
+def presence_accept(req: AcceptReq):
+    challenge = _pending_challenges.get(req.player_id)
+    if not challenge or challenge["from_id"] != req.from_id:
+        raise HTTPException(404, "No pending challenge")
+    accepter = _online_players.get(req.player_id)
+    challenger = _online_players.get(req.from_id)
+    if not accepter or not challenger:
+        raise HTTPException(404, "Player offline")
+    # Create battle room
+    room = create_room(req.from_id, challenger["username"])
+    room.player2 = Player(player_id=req.player_id, username=accepter["username"])
+    challenger["in_battle"] = True
+    accepter["in_battle"] = True
+    # Store room_id in both directions so both players discover it via heartbeat
+    _pending_challenges[req.player_id] = {**challenge, "room_id": room.room_id}
+    _pending_challenges[req.from_id] = {
+        "from_id": req.player_id,
+        "from_username": accepter["username"],
+        "room_id": room.room_id,
+        "ts": time.time(),
+    }
+    return {"room_id": room.room_id}
+
+
+class DeclineReq(BaseModel):
+    player_id: str
+    from_id: str
+
+
+@app.post("/presence/decline")
+def presence_decline(req: DeclineReq):
+    _pending_challenges.pop(req.player_id, None)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

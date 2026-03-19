@@ -8,8 +8,8 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle } from "@/lib/api";
-import { createPresenceSocket, type OnlinePlayer, type PresenceMessage } from "@/lib/ws";
+import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline } from "@/lib/api";
+import type { OnlinePlayer } from "@/lib/ws";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -222,34 +222,40 @@ export default function SandboxPage() {
   const matchCancelled = useRef(false);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* Presence / online players */
+  /* Presence / online players (REST polling) */
   const [worldOpen, setWorldOpen] = useState(false);
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
   const [battleRequest, setBattleRequest] = useState<{ from_id: string; from_username: string } | null>(null);
   const [challengeSent, setChallengeSent] = useState<string | null>(null);
-  const presenceRef = useRef<ReturnType<typeof createPresenceSocket> | null>(null);
 
   useEffect(() => {
     if (!playerName) return;
     const playerId = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
-    const ps = createPresenceSocket(playerId, playerName, (msg: PresenceMessage) => {
-      switch (msg.type) {
-        case "player_list":
-          setOnlinePlayers(msg.players.filter((p) => p.id !== playerId));
-          break;
-        case "battle_request":
-          setBattleRequest({ from_id: msg.from_id, from_username: msg.from_username });
-          break;
-        case "go_to_battle":
-          router.push(`/battle/${msg.room_id}`);
-          break;
-        case "challenge_declined":
-          setChallengeSent(null);
-          break;
-      }
-    });
-    presenceRef.current = ps;
-    return () => ps.close();
+    let active = true;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        // Heartbeat — also checks if we got redirected to a battle
+        const hb = await presenceHeartbeat(playerId, playerName);
+        if (!active) return;
+        if (hb.go_to_battle) { router.push(`/battle/${hb.go_to_battle}`); return; }
+
+        // Fetch online players
+        const { players } = await presenceOnline();
+        if (!active) return;
+        setOnlinePlayers(players.filter((p) => p.id !== playerId));
+
+        // Check for incoming challenges
+        const { challenge } = await presenceGetChallenges(playerId);
+        if (!active) return;
+        if (challenge) setBattleRequest(challenge);
+      } catch { /* server unreachable — retry next tick */ }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { active = false; clearInterval(interval); };
   }, [playerName, router]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
@@ -573,12 +579,20 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               </p>
               <div className="flex gap-2">
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => { presenceRef.current?.send({ type: "accept_challenge", from_id: battleRequest.from_id }); setBattleRequest(null); }}
+                  onClick={async () => {
+                    const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+                    try { const r = await presenceAccept(pid, battleRequest.from_id); router.push(`/battle/${r.room_id}`); } catch {}
+                    setBattleRequest(null);
+                  }}
                   className="flex-1 rounded-lg bg-[#30d158] py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-[#3bde63]">
                   ACCEPT
                 </motion.button>
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => { presenceRef.current?.send({ type: "decline_challenge", from_id: battleRequest.from_id }); setBattleRequest(null); }}
+                  onClick={() => {
+                    const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+                    presenceDecline(pid, battleRequest.from_id).catch(() => {});
+                    setBattleRequest(null);
+                  }}
                   className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] py-2 font-mono text-xs font-bold uppercase text-white/50 transition-all hover:bg-white/[0.08]">
                   DECLINE
                 </motion.button>
@@ -657,7 +671,8 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                           disabled={challengeSent === p.id}
                           onClick={() => {
-                            presenceRef.current?.send({ type: "challenge", target_id: p.id });
+                            const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+                            presenceChallenge(pid, p.id).catch(() => {});
                             setChallengeSent(p.id);
                           }}
                           className="rounded-md border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-3 py-1 font-mono text-[10px] md:text-xs font-bold uppercase text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20 disabled:opacity-40">
