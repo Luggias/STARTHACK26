@@ -23,6 +23,8 @@ interface GameState {
   /* Saved strategies */
   strategies: Strategy[];
   addStrategy: (s: Strategy) => void;
+  updateStrategy: (index: number, s: Strategy) => void;
+  deleteStrategy: (index: number) => void;
 
   /* Long-term portfolio */
   longtermPortfolio: LongtermPortfolio | null;
@@ -95,6 +97,8 @@ export const useGameStore = create<GameState>()(
 
       strategies: [],
       addStrategy: (s) => set((state) => ({ strategies: [s, ...state.strategies].slice(0, 20) })),
+      updateStrategy: (index, s) => set((state) => ({ strategies: state.strategies.map((st, i) => i === index ? s : st) })),
+      deleteStrategy: (index) => set((state) => ({ strategies: state.strategies.filter((_, i) => i !== index) })),
 
       longtermPortfolio: null,
       setLongtermPortfolio: (p) => set({ longtermPortfolio: p }),

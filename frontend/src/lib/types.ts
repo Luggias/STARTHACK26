@@ -80,9 +80,10 @@ export interface Strategy {
   id?: string;
   user_id?: string;
   name: string;
-  allocation: Allocation;
-  scenario_key: string;
-  result: Partial<SimulationResult>;
+  allocation: Record<string, number>;
+  scenario_key?: string;
+  selectedAssets?: Record<string, string[]>;
+  result?: Partial<SimulationResult>;
   created_at?: string;
 }
 

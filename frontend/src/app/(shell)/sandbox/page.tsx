@@ -1,281 +1,815 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/game-store";
-import { getScenarios, simulate, simulateGBM, simulateMonteCarlo, saveStrategy } from "@/lib/api";
-import { ASSET_KEYS } from "@/lib/constants";
-import type { ScenarioMeta, SimulationResult, GBMResult, MarketEvent } from "@/lib/types";
-import PortfolioBuilder from "@/components/portfolio-builder";
-import ScenarioSelector from "@/components/scenario-selector";
-import PerformanceChart from "@/components/performance-chart";
-import MarketEventModal from "@/components/market-event-modal";
+import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
+import type { AssetClassKey } from "@/lib/constants";
+import type { Strategy } from "@/lib/types";
 
-type Mode = "historical" | "gbm";
+/* ══════════════════════════════════════════════
+   TYPES
+══════════════════════════════════════════════ */
+type Selections = Record<AssetClassKey, string[]>;
+type Level      = 1 | 2 | 3;
+type BuildStep  = 0 | 1 | 2 | 3 | 4;
+type TestStep   = "horizon" | "events" | "results";
 
-export default function SandboxPage() {
-  const allocation        = useGameStore((s) => s.allocation);
-  const setAssetAllocation = useGameStore((s) => s.setAssetAllocation);
-  const resetAllocation   = useGameStore((s) => s.resetAllocation);
-  const unlockAsset       = useGameStore((s) => s.unlockAsset);
-  const addStrategy       = useGameStore((s) => s.addStrategy);
-  const token             = useGameStore((s) => s.token);
+const LEVEL_LABELS: Record<Level, string> = { 1: "LOW", 2: "MED", 3: "HIGH" };
+const LEVEL_UNITS:  Record<Level, number> = { 1: 1,    2: 2,    3: 4    };
+const HORIZONS = [1, 3, 5, 10, 20] as const;
 
-  const [mode, setMode]               = useState<Mode>("historical");
-  const [scenarios, setScenarios]     = useState<ScenarioMeta[]>([]);
-  const [selected, setSelected]       = useState<string | null>(null);
-  const [injectEvents, setInjectEvents] = useState(true);
-  const [strategyName, setStrategyName] = useState("");
+/* ══════════════════════════════════════════════
+   EVENTS
+══════════════════════════════════════════════ */
+interface GameEvent {
+  key: string;
+  label: string;
+  type: "positive" | "negative";
+  description: string;
+  shocks: Partial<Record<AssetClassKey, number>>;
+}
 
-  const [histResult, setHistResult]   = useState<SimulationResult | null>(null);
-  const [gbmResult, setGbmResult]     = useState<GBMResult | null>(null);
-  const [mcResult, setMcResult]       = useState<{ p5: number[]; p50: number[]; p95: number[] } | null>(null);
+const GAME_EVENTS: GameEvent[] = [
+  { key: "tech_boom",        type: "positive", label: "Tech Boom",
+    description: "AI and semiconductor breakthroughs drive equity markets to new highs.",
+    shocks: { equities: 0.28, etfs: 0.22, bonds: -0.03, commodities: 0.02 } },
+  { key: "rate_cut",         type: "positive", label: "Rate Cut",
+    description: "Central banks slash rates — borrowing is cheap, growth assets rally.",
+    shocks: { equities: 0.18, etfs: 0.15, bonds: 0.22, commodities: 0.04 } },
+  { key: "economic_boom",    type: "positive", label: "Economic Boom",
+    description: "GDP surges, unemployment hits record lows, corporate earnings beat.",
+    shocks: { equities: 0.24, etfs: 0.20, bonds: -0.04, commodities: 0.14 } },
+  { key: "commodity_cycle",  type: "positive", label: "Commodity Supercycle",
+    description: "Global infrastructure boom drives demand for metals and energy.",
+    shocks: { equities: 0.05, etfs: 0.06, bonds: 0.01, commodities: 0.40 } },
+  { key: "peace_deal",       type: "positive", label: "Peace Deal",
+    description: "Major conflict resolved. Risk appetite surges, safe havens fall.",
+    shocks: { equities: 0.20, etfs: 0.17, bonds: 0.08, commodities: -0.12 } },
+  { key: "innovation_wave",  type: "positive", label: "Innovation Wave",
+    description: "Breakthroughs in clean energy and biotech create new market leaders.",
+    shocks: { equities: 0.16, etfs: 0.20, bonds: 0.02, commodities: 0.05 } },
 
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState("");
-  const [saveStatus, setSaveStatus]   = useState<"idle" | "saving" | "saved">("idle");
+  { key: "war",              type: "negative", label: "War & Conflict",
+    description: "Military conflict disrupts supply chains. Gold and oil spike.",
+    shocks: { equities: -0.30, etfs: -0.25, bonds: -0.15, commodities: 0.40 } },
+  { key: "recession",        type: "negative", label: "Recession",
+    description: "Economy contracts. Unemployment spikes. Consumer spending collapses.",
+    shocks: { equities: -0.40, etfs: -0.35, bonds: 0.10, commodities: -0.22 } },
+  { key: "rate_hike",        type: "negative", label: "Aggressive Rate Hike",
+    description: "Central banks raise rates sharply — bonds and growth stocks hammered.",
+    shocks: { equities: -0.22, etfs: -0.19, bonds: -0.28, commodities: 0.04 } },
+  { key: "inflation_surge",  type: "negative", label: "Inflation Surge",
+    description: "Inflation hits multi-decade highs. Real returns on bonds turn negative.",
+    shocks: { equities: -0.18, etfs: -0.15, bonds: -0.32, commodities: 0.28 } },
+  { key: "market_crash",     type: "negative", label: "Market Crash",
+    description: "Panic selling triggers a broad collapse. Gold and bonds catch the fear.",
+    shocks: { equities: -0.50, etfs: -0.44, bonds: 0.08, commodities: 0.12 } },
+  { key: "pandemic",         type: "negative", label: "Pandemic",
+    description: "Global health crisis halts economic activity worldwide for months.",
+    shocks: { equities: -0.38, etfs: -0.33, bonds: 0.07, commodities: -0.25 } },
+];
 
-  const [pendingEvents, setPendingEvents] = useState<MarketEvent[]>([]);
-  const [currentEvent, setCurrentEvent]   = useState<MarketEvent | null>(null);
+const POS_EVENTS = GAME_EVENTS.filter((e) => e.type === "positive");
+const NEG_EVENTS = GAME_EVENTS.filter((e) => e.type === "negative");
 
-  useEffect(() => {
-    getScenarios().then(setScenarios).catch(() =>
-      setScenarios([
-        { key: "2008_crisis",    name: "2008 Financial Crisis",   period: "Sep 2008 – Feb 2009", description: "Lehman Brothers collapse triggers global meltdown.",  lesson: "Diversification protects.", num_months: 6  },
-        { key: "covid_crash",    name: "COVID Crash & Recovery",  period: "Feb 2020 – Dec 2020", description: "Markets crashed 30% in weeks, then recovered fast.",   lesson: "Stay invested.",          num_months: 11 },
-        { key: "dotcom_burst",   name: "Dot-Com Bubble Burst",    period: "Mar 2000 – Mar 2001", description: "Tech stocks collapsed when internet hype ended.",     lesson: "Avoid sector concentration.",num_months: 13 },
-        { key: "2022_inflation", name: "2022 Inflation Surge",    period: "Jan 2022 – Dec 2022", description: "Both stocks & bonds fell as inflation surged.",       lesson: "Inflation changes everything.", num_months: 12 },
-      ])
-    );
-  }, []);
+/* ══════════════════════════════════════════════
+   SIMULATION
+══════════════════════════════════════════════ */
+const SIM_PARAMS: Record<AssetClassKey, { mu: number; sigma: number }> = {
+  equities:    { mu: 0.06, sigma: 0.22 },  // good upside but crashes hard
+  etfs:        { mu: 0.055, sigma: 0.17 }, // slightly smoother than single stocks
+  bonds:       { mu: 0.020, sigma: 0.07 }, // low but stable
+  commodities: { mu: 0.030, sigma: 0.24 }, // volatile, low base drift
+};
 
-  function dismissEvent() {
-    const rest = pendingEvents.slice(1);
-    setPendingEvents(rest);
-    setCurrentEvent(rest[0] ?? null);
-  }
+function runSim(
+  allocation: Record<string, number>,
+  years: number,
+  events: { event: GameEvent; atYear: number }[],
+  seed: number,
+): { values: number[]; totalReturn: number; finalValue: number } {
+  // Seeded LCG — seed varies per run so results aren't deterministic
+  let s = (seed ^ 0xdeadbeef) >>> 0;
+  const rand  = () => { s = Math.imul(1664525, s) + 1013904223 >>> 0; return s / 4294967296; };
+  const randn = () => Math.sqrt(-2 * Math.log(Math.max(rand(), 1e-10))) * Math.cos(2 * Math.PI * rand());
 
-  async function handleRun() {
-    const total = ASSET_KEYS.reduce((sum, k) => sum + allocation[k], 0);
-    if (total !== 100) { setError(`Allocation must be 100% (currently ${total}%)`); return; }
-    if (mode === "historical" && !selected) { setError("Select a scenario first."); return; }
+  // Concentration penalty: single-asset bets are far more volatile
+  const maxAlloc  = Math.max(...Object.values(allocation));
+  const concMult  = maxAlloc >= 80 ? 1.6 : maxAlloc >= 60 ? 1.3 : 1.0;
 
-    setLoading(true); setError(""); setHistResult(null); setGbmResult(null); setMcResult(null);
+  const months = years * 12;
+  // Front-load shocks: 70% hits in month 0, 20% month 1, 10% month 2
+  // This reflects how real crashes are sudden, not gradual
+  const SHOCK_W = [0.70, 0.20, 0.10];
+  const shockAt = new Map<number, { ev: GameEvent; w: number }[]>();
+  events.forEach(({ event: ev, atYear }) => {
+    const start = Math.round(atYear * 12);
+    SHOCK_W.forEach((w, d) => {
+      const m = start + d;
+      if (m >= months) return;
+      shockAt.set(m, [...(shockAt.get(m) ?? []), { ev, w }]);
+    });
+  });
 
-    try {
-      if (mode === "historical") {
-        const r = await simulate(allocation, selected!);
-        setHistResult(r);
-      } else {
-        const [gbm, mc] = await Promise.all([
-          simulateGBM(allocation, 20, undefined, injectEvents),
-          simulateMonteCarlo(allocation, 20, 100),
-        ]);
-        setGbmResult(gbm);
-        setMcResult({ p5: mc.p5, p50: mc.p50, p95: mc.p95 });
-        if (injectEvents && gbm.events_triggered.length > 0) {
-          setPendingEvents(gbm.events_triggered);
-          setCurrentEvent(gbm.events_triggered[0]);
-        }
+  const values: number[] = [10000];
+  let pv = 10000;
+
+  for (let m = 0; m < months; m++) {
+    let monthRet = 0;
+    for (const [key, pct] of Object.entries(allocation)) {
+      if (!pct) continue;
+      const p     = SIM_PARAMS[key as AssetClassKey] ?? { mu: 0.07, sigma: 0.15 };
+      const sigma = p.sigma * concMult;
+      const drift     = (p.mu - 0.5 * sigma ** 2) / 12;
+      const diffusion = (sigma / Math.sqrt(12)) * randn();
+      let r = Math.exp(drift + diffusion) - 1;
+      for (const { ev, w } of shockAt.get(m) ?? []) {
+        r += (ev.shocks[key as AssetClassKey] ?? 0) * w;
       }
-    } catch {
-      setError("Simulation failed. Is the backend running?");
-    } finally {
-      setLoading(false);
+      monthRet += (pct / 100) * r;
     }
+    pv = Math.max(10, pv * (1 + monthRet));
+    values.push(pv);
+  }
+  return { values, finalValue: pv, totalReturn: ((pv - 10000) / 10000) * 100 };
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function initLevels(): Record<AssetClassKey, Level> {
+  const l = {} as Record<AssetClassKey, Level>;
+  ASSET_CLASS_KEYS.forEach((k) => { l[k] = 2; });
+  return l;
+}
+
+function levelsToWeights(levels: Record<AssetClassKey, Level>, activeKeys: AssetClassKey[]): Record<string, number> {
+  if (activeKeys.length === 0) return {};
+  const total = activeKeys.reduce((s, k) => s + LEVEL_UNITS[levels[k]], 0);
+  const w: Record<string, number> = {};
+  let acc = 0;
+  activeKeys.forEach((k, i) => {
+    w[k] = i === activeKeys.length - 1
+      ? 100 - acc
+      : Math.round((LEVEL_UNITS[levels[k]] / total) * 100);
+    acc += w[k];
+  });
+  return w;
+}
+
+function allocationToLevels(alloc: Record<string, number>): Record<AssetClassKey, Level> {
+  const res = {} as Record<AssetClassKey, Level>;
+  ASSET_CLASS_KEYS.forEach((k) => {
+    const pct = alloc[k] ?? 25;
+    res[k] = pct >= 35 ? 3 : pct >= 18 ? 2 : 1;
+  });
+  return res;
+}
+
+/* ══════════════════════════════════════════════
+   MINI CHART
+══════════════════════════════════════════════ */
+function MiniChart({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null;
+  const W = 500; const H = 120;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const rng = max - min || 1;
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * W},${H - ((v - min) / rng) * H}`);
+  const line = `M ${pts.join(" L ")}`;
+  const area = `M 0,${H} L ${pts.join(" L ")} L ${W},${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 120 }}>
+      <defs>
+        <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#cg)" />
+      <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   PAGE
+══════════════════════════════════════════════ */
+export default function SandboxPage() {
+  const strategies     = useGameStore((s) => s.strategies);
+  const addStrategy    = useGameStore((s) => s.addStrategy);
+  const updateStrategy = useGameStore((s) => s.updateStrategy);
+  const deleteStrategy = useGameStore((s) => s.deleteStrategy);
+
+  /* Builder state */
+  const [building, setBuilding]           = useState(false);
+  const [editingIndex, setEditingIndex]   = useState<number | null>(null);
+  const [step, setStep]                   = useState<BuildStep>(0);
+  const [selections, setSelections]       = useState<Selections>({ equities: [], etfs: [], bonds: [], commodities: [] });
+  const [levels, setLevels]               = useState<Record<AssetClassKey, Level>>(initLevels);
+  const [name, setName]                   = useState("");
+  const [infoOpen, setInfoOpen]           = useState(false);
+  const [expandedAsset, setExpandedAsset] = useState<string | null>(null);
+
+  /* Test state */
+  const [testTarget, setTestTarget]     = useState<{ strategy: Strategy; index: number } | null>(null);
+  const [testStep, setTestStep]         = useState<TestStep>("horizon");
+  const [horizon, setHorizon]           = useState(10);
+  const [pickedEvents, setPickedEvents] = useState<string[]>([]);
+  const [eventTimings, setEventTimings] = useState<Record<string, number>>({});
+  const [simResult, setSimResult]       = useState<ReturnType<typeof runSim> | null>(null);
+  const [coachText, setCoachText]       = useState<string | null>(null);
+  const [coachLoading, setCoachLoading] = useState(false);
+
+  /* ─── Builder helpers ─── */
+  function openBuilder(editIdx?: number) {
+    if (editIdx !== null && editIdx !== undefined) {
+      const s = strategies[editIdx];
+      setName(s.name);
+      setLevels(allocationToLevels(s.allocation));
+      const sel: Selections = { equities: [], etfs: [], bonds: [], commodities: [] };
+      if (s.selectedAssets) Object.assign(sel, s.selectedAssets);
+      setSelections(sel);
+      setEditingIndex(editIdx);
+    } else {
+      setName("");
+      setLevels(initLevels());
+      setSelections({ equities: [], etfs: [], bonds: [], commodities: [] });
+      setEditingIndex(null);
+    }
+    setStep(0); setInfoOpen(false); setExpandedAsset(null); setBuilding(true);
   }
 
-  async function handleSave() {
-    const r = mode === "historical" ? histResult : gbmResult;
-    if (!r || !token) return;
-    setSaveStatus("saving");
+  function toggleAsset(classKey: AssetClassKey, id: string) {
+    setSelections((prev) => ({
+      ...prev,
+      [classKey]: prev[classKey].includes(id)
+        ? prev[classKey].filter((x) => x !== id)
+        : [...prev[classKey], id],
+    }));
+  }
+
+  function nextStep() { if (step < 4) { setStep((s) => (s + 1) as BuildStep); setInfoOpen(false); setExpandedAsset(null); } }
+  function prevStep() { if (step > 0) { setStep((s) => (s - 1) as BuildStep); setInfoOpen(false); setExpandedAsset(null); } }
+
+  function deploy() {
+    const ak = ASSET_CLASS_KEYS.filter((k) => selections[k].length > 0);
+    const allocation = levelsToWeights(levels, ak);
+    const strat: Strategy = {
+      name: name.trim() || `Strategy ${strategies.length + 1}`,
+      allocation, selectedAssets: selections, scenario_key: "sandbox",
+    };
+    if (editingIndex !== null) updateStrategy(editingIndex, strat);
+    else addStrategy(strat);
+    setBuilding(false);
+  }
+
+  /* ─── Test helpers ─── */
+  function openTest(strategy: Strategy, index: number) {
+    setTestTarget({ strategy, index });
+    setTestStep("horizon"); setHorizon(10);
+    setPickedEvents([]); setEventTimings({}); setSimResult(null);
+    setCoachText(null); setCoachLoading(false);
+  }
+
+  async function runTest() {
+    if (!testTarget) return;
+    const events = pickedEvents.map((key) => ({
+      event: GAME_EVENTS.find((e) => e.key === key)!,
+      atYear: eventTimings[key] ?? horizon / 2,
+    }));
+    const result = runSim(testTarget.strategy.allocation, horizon, events, Math.random() * 2 ** 32 | 0);
+    setSimResult(result);
+    setCoachText(null);
+    setTestStep("results");
+
+    // Build prompt for coach
+    const alloc    = testTarget.strategy.allocation;
+    const allocStr = Object.entries(alloc)
+      .sort(([, a], [, b]) => b - a)
+      .map(([k, v]) => `${ASSET_CLASSES[k as AssetClassKey]?.label ?? k} ${v}%`)
+      .join(", ");
+    const eventsStr = pickedEvents.length === 0
+      ? "no market events"
+      : pickedEvents.map((key) => {
+          const ev = GAME_EVENTS.find((e) => e.key === key)!;
+          return `${ev.label} at year ${eventTimings[key] ?? Math.round(horizon / 2)}`;
+        }).join(", ");
+    const returnStr  = result.totalReturn >= 0 ? `+${result.totalReturn.toFixed(1)}%` : `${result.totalReturn.toFixed(1)}%`;
+    const maxAlloc   = Math.max(...Object.values(alloc));
+    const negCount   = pickedEvents.filter((k) => GAME_EVENTS.find((e) => e.key === k)?.type === "negative").length;
+    const riskLabel  = maxAlloc >= 80 ? "DANGEROUSLY concentrated (no diversification)" : maxAlloc >= 60 ? "highly concentrated" : "moderately diversified";
+    const harshNote  = result.totalReturn < -15 || (negCount >= 2 && maxAlloc >= 70)
+      ? "This was a poor, high-risk strategy. Be direct and critical — do NOT call it good or say it performed reasonably. Point out the lack of diversification and vulnerability to bad events."
+      : result.totalReturn < 0
+      ? "This strategy underperformed. Be honest about why."
+      : "";
+
+    const prompt = `You are a blunt, experienced investment coach giving honest feedback to a beginner investor. Do NOT sugarcoat bad strategies.
+
+Strategy: "${testTarget.strategy.name}"
+Allocation: ${allocStr}
+Risk profile: ${riskLabel}
+Time horizon: ${horizon} years
+Market events: ${eventsStr}
+Result: ${returnStr} total return (final value $${result.finalValue.toFixed(0)} from $10,000 start)
+${harshNote}
+
+Give feedback in exactly two parts — no headers, no bullet points, plain text only:
+1. One sentence (max 25 words) honest assessment of the strategy. If undiversified or risky, use words like "dangerously concentrated", "no safety net", "extremely vulnerable", or "no buffer against losses".
+2. Two to three sentences explaining why the portfolio performed this way given the specific events and allocation. Keep it simple enough for a beginner.`;
+
+    setCoachLoading(true);
     try {
-      const name = strategyName.trim() || `Strategy ${new Date().toLocaleDateString()}`;
-      const resp = await saveStrategy({
-        name,
-        allocation,
-        scenario_key: mode === "historical" ? (selected ?? "historical") : "gbm_20y",
-        result: r as Partial<SimulationResult>,
+      const res = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
       });
-      if (resp.unlocked_next) unlockAsset(resp.unlocked_next);
-      addStrategy({ name, allocation, scenario_key: selected ?? "gbm_20y", result: r as Partial<SimulationResult> });
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2500);
+      const data = await res.json();
+      setCoachText(data.text ?? null);
     } catch {
-      setSaveStatus("idle");
+      setCoachText(null);
+    } finally {
+      setCoachLoading(false);
     }
   }
 
-  const result      = mode === "historical" ? histResult : gbmResult;
-  const values      = result ? ("values" in result ? result.values : null) : null;
-  const months      = result ? ("months" in result ? result.months : null) : null;
-  const hasResult   = !!(result && values && months);
+  function toggleEvent(key: string) {
+    setPickedEvents((prev) => {
+      if (prev.includes(key)) {
+        setEventTimings((t) => { const n = { ...t }; delete n[key]; return n; });
+        return prev.filter((k) => k !== key);
+      }
+      setEventTimings((t) => ({ ...t, [key]: Math.round(horizon / 2) }));
+      return [...prev, key];
+    });
+  }
+
+  function setEventYear(key: string, year: number) {
+    setEventTimings((t) => ({ ...t, [key]: year }));
+  }
+
+  const currentKey = step < 4 ? ASSET_CLASS_KEYS[step] : null;
+  const currentCls = currentKey ? ASSET_CLASSES[currentKey] : null;
+  const activeKeys = ASSET_CLASS_KEYS.filter((k) => selections[k].length > 0);
+  const weights    = levelsToWeights(levels, activeKeys);
 
   return (
-    <div className="min-h-screen px-6 py-10">
-      <MarketEventModal event={currentEvent} onDismiss={dismissEvent} />
-
+    <div
+      className="min-h-screen px-5 py-8 md:px-10"
+      style={{
+        backgroundImage: "linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px)",
+        backgroundSize: "48px 48px",
+      }}
+    >
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-headline text-white">Sandbox</h1>
-        <p className="mt-1 text-sm text-white/35">Build and test your portfolio strategies</p>
-      </motion.div>
-
-      {/* Strategy name */}
-      <div className="mt-8 max-w-xs">
-        <input
-          type="text"
-          placeholder="Strategy name…"
-          value={strategyName}
-          onChange={(e) => setStrategyName(e.target.value)}
-          className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none transition-all focus:border-white/15 focus:bg-white/[0.06]"
-        />
+      <div className="mb-8 flex items-center gap-4">
+        <div className="h-px flex-1 bg-[#00d4ff]/20" />
+        <h1 className="font-mono text-xs font-bold uppercase tracking-[0.3em] text-[#00d4ff]">◈ SANDBOX</h1>
+        <div className="h-px flex-1 bg-[#00d4ff]/20" />
       </div>
 
-      {/* Mode toggle */}
-      <div className="mt-4 inline-flex rounded-xl bg-white/[0.04] p-1 gap-0.5">
-        {(["historical", "gbm"] as Mode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`rounded-lg px-5 py-2 text-sm font-medium transition-all ${
-              mode === m ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"
-            }`}
-          >
-            {m === "historical" ? "Historical" : "GBM · 20 years"}
-          </button>
-        ))}
+      {/* List header */}
+      <div className="mb-4 flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
+          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+          <span className="text-base leading-none">+</span> NEW STRATEGY
+        </motion.button>
       </div>
 
-      {/* Main content */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
-        {/* Portfolio builder */}
-        <div className="glass rounded-2xl p-6">
-          <PortfolioBuilder
-            allocation={allocation}
-            onAssetChange={setAssetAllocation}
-            onReset={resetAllocation}
-          />
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-col gap-4">
-          {mode === "historical" && (
-            <div className="glass rounded-2xl p-5">
-              <p className="mb-3 text-sm font-medium text-white/70">Select scenario</p>
-              <ScenarioSelector scenarios={scenarios} selected={selected} onSelect={setSelected} />
-            </div>
-          )}
-
-          {mode === "gbm" && (
-            <div className="glass rounded-2xl p-5">
-              <p className="mb-3 text-sm font-medium text-white/70">Options</p>
-              <label className="flex cursor-pointer items-center gap-3">
-                <div
-                  onClick={() => setInjectEvents(!injectEvents)}
-                  className={`relative h-6 w-10 rounded-full transition-colors ${injectEvents ? "bg-[#0071e3]" : "bg-white/10"}`}
-                >
-                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${injectEvents ? "translate-x-4" : "translate-x-0.5"}`} />
-                </div>
-                <span className="text-sm text-white/60">Market events</span>
-              </label>
-            </div>
-          )}
-
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={handleRun}
-            disabled={loading || (mode === "historical" && !selected)}
-            className="rounded-full bg-[#0071e3] py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#0077ed] disabled:opacity-30"
-          >
-            {loading ? "Simulating…" : "Run Simulation"}
+      {/* Strategy grid */}
+      {strategies.length === 0 ? (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] py-20 text-center">
+          <div className="mb-4 font-mono text-4xl text-[#00d4ff]/20">◈</div>
+          <p className="mb-1 font-mono text-sm font-bold uppercase tracking-widest text-white/50">NO STRATEGIES YET</p>
+          <p className="mb-6 text-xs text-white/40">Build your first portfolio strategy to get started</p>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
+            className="rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-6 py-2.5 font-mono text-xs font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+            + DEPLOY FIRST STRATEGY
           </motion.button>
-
-          {error && <p className="text-xs text-[#ff453a]">{error}</p>}
+        </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {strategies.map((s, i) => (
+            <StrategyCard key={i} strategy={s}
+              onDelete={() => deleteStrategy(i)}
+              onEdit={() => openBuilder(i)}
+              onTest={() => openTest(s, i)}
+            />
+          ))}
         </div>
-      </div>
+      )}
 
-      {/* Results */}
+      {/* ══ BUILDER OVERLAY ══ */}
       <AnimatePresence>
-        {hasResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-8"
-          >
-            {/* Results header */}
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">Results</h2>
-              <button
-                onClick={handleSave}
-                disabled={saveStatus !== "idle"}
-                className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-                  saveStatus === "saved"
-                    ? "bg-[#30d158]/10 text-[#30d158]"
-                    : "bg-white/[0.06] text-white/60 hover:bg-white/[0.1] hover:text-white disabled:opacity-40"
-                }`}
-              >
-                {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved" : "Save strategy"}
-              </button>
-            </div>
+        {building && (
+          <motion.div key="builder" className="fixed inset-0 z-50 flex flex-col"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ background: "rgba(0,0,0,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
 
-            {/* Metrics */}
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Metric label="Final Value" value={`$${result!.final_value.toFixed(0)}`} positive={result!.final_value >= 10000} />
-              <Metric label="Total Return" value={`${result!.total_return >= 0 ? "+" : ""}${result!.total_return.toFixed(1)}%`} positive={result!.total_return >= 0} />
-              {"sharpe_ratio" in result! && <Metric label="Sharpe" value={(result as SimulationResult).sharpe_ratio.toFixed(2)} positive={(result as SimulationResult).sharpe_ratio >= 0} />}
-              {"max_drawdown" in result! && <Metric label="Max Drawdown" value={`-${(result as SimulationResult).max_drawdown.toFixed(1)}%`} positive={(result as SimulationResult).max_drawdown < 10} />}
-            </div>
-
-            {/* Chart */}
-            <div className="glass rounded-2xl p-5">
-              <PerformanceChart months={months!} values={values!} animate color="#2997ff" />
-              {mcResult && (
-                <div className="mt-3 flex gap-5 border-t border-white/[0.06] pt-3">
-                  <MCBand label="5th pct" value={mcResult.p5.at(-1)} color="#ff453a" />
-                  <MCBand label="Median"  value={mcResult.p50.at(-1)} color="#2997ff" />
-                  <MCBand label="95th pct" value={mcResult.p95.at(-1)} color="#30d158" />
+            {/* Builder header */}
+            <div className="flex items-center justify-between border-b border-[#00d4ff]/20 px-6 py-4">
+              <div className="flex items-center gap-4">
+                <button onClick={step > 0 ? prevStep : () => setBuilding(false)}
+                  className="font-mono text-xs font-semibold text-[#00d4ff]/70 transition-colors hover:text-[#00d4ff]">
+                  {step > 0 ? "← BACK" : "← CANCEL"}
+                </button>
+                {currentCls && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xl" style={{ color: currentCls.color }}>{currentCls.icon}</span>
+                    <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">{currentCls.label}</span>
+                    <button onClick={() => setInfoOpen((v) => !v)}
+                      className="flex h-5 w-5 items-center justify-center rounded-full border font-mono text-[11px] font-bold transition-all"
+                      style={{ borderColor: infoOpen ? currentCls.color : "rgba(255,255,255,0.15)", color: infoOpen ? currentCls.color : "rgba(255,255,255,0.3)", background: infoOpen ? `${currentCls.color}15` : "transparent" }}>
+                      i
+                    </button>
+                  </div>
+                )}
+                {step === 4 && <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">ALLOCATE WEIGHTS</span>}
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  {([0,1,2,3,4] as BuildStep[]).map((s) => (
+                    <div key={s} className="h-1.5 rounded-full transition-all"
+                      style={{ width: s === step ? "20px" : "6px", background: s === step ? (currentCls?.color ?? "#00d4ff") : s < step ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)" }} />
+                  ))}
                 </div>
+                <span className="font-mono text-[10px] text-white/45 uppercase tracking-widest">{String(step + 1).padStart(2, "0")} / 05</span>
+                <button onClick={() => setBuilding(false)} className="font-mono text-lg leading-none text-white/55 transition-colors hover:text-white/80">×</button>
+              </div>
+            </div>
+
+            {/* Builder body */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <AnimatePresence mode="wait">
+
+                {/* Asset class steps 0-3 */}
+                {step < 4 && currentKey && currentCls && (
+                  <motion.div key={`step-${step}`} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }}>
+                    <AnimatePresence>
+                      {infoOpen && (
+                        <motion.div key="info" initial={{ height: 0, opacity: 0, marginBottom: 0 }} animate={{ height: "auto", opacity: 1, marginBottom: 24 }} exit={{ height: 0, opacity: 0, marginBottom: 0 }} className="overflow-hidden">
+                          <div className="rounded-xl border p-4 text-sm leading-relaxed text-white/60" style={{ borderColor: `${currentCls.color}40`, background: `${currentCls.color}08` }}>
+                            <span className="mr-2 font-mono font-bold" style={{ color: currentCls.color }}>{currentCls.icon} {currentCls.label}</span>
+                            {currentCls.info}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-white/50">SELECT 0 – 5 · {selections[currentKey].length} CHOSEN</p>
+
+                    <div className="mx-auto max-w-xl space-y-2">
+                      {currentCls.examples.map((ex) => {
+                        const isOn = selections[currentKey].includes(ex.id);
+                        const isExp = expandedAsset === ex.id;
+                        return (
+                          <div key={ex.id} className="overflow-hidden rounded-xl border transition-all"
+                            style={{ borderColor: isOn ? currentCls.color : "rgba(255,255,255,0.07)", background: isOn ? `${currentCls.color}10` : "rgba(255,255,255,0.02)" }}>
+                            <div className="flex items-center gap-3 px-4 py-3.5">
+                              <button onClick={() => toggleAsset(currentKey, ex.id)}
+                                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border text-xs font-bold transition-all"
+                                style={{ borderColor: isOn ? currentCls.color : "rgba(255,255,255,0.15)", background: isOn ? currentCls.color : "transparent", color: "#000" }}>
+                                {isOn ? "✓" : ""}
+                              </button>
+                              <button onClick={() => toggleAsset(currentKey, ex.id)} className="flex flex-1 items-baseline gap-3 text-left">
+                                <span className="font-mono text-sm font-semibold text-white">{ex.label}</span>
+                                <span className="font-mono text-[10px] uppercase tracking-widest" style={{ color: `${currentCls.color}70` }}>{ex.ticker}</span>
+                              </button>
+                              <button onClick={() => setExpandedAsset(isExp ? null : ex.id)}
+                                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-bold transition-all"
+                                style={{ borderColor: isExp ? currentCls.color : "rgba(255,255,255,0.12)", color: isExp ? currentCls.color : "rgba(255,255,255,0.3)", background: isExp ? `${currentCls.color}15` : "transparent" }}>
+                                i
+                              </button>
+                            </div>
+                            <AnimatePresence>
+                              {isExp && (
+                                <motion.div key="xinfo" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+                                  <div className="border-t px-4 py-3 text-xs leading-relaxed text-white/50" style={{ borderColor: `${currentCls.color}25` }}>{ex.info}</div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Weight step */}
+                {step === 4 && (
+                  <motion.div key="weights" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-xl">
+                    {activeKeys.length === 0 ? (
+                      <div className="flex flex-col items-center py-16 text-center">
+                        <p className="mb-2 font-mono text-sm font-bold uppercase tracking-widest text-white/50">NO ASSETS SELECTED</p>
+                        <p className="text-xs text-white/40">Go back and select at least one asset to continue.</p>
+                      </div>
+                    ) : (
+                    <>
+                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">HOW MUCH WEIGHT ON EACH CLASS?</p>
+                    <div className="space-y-3">
+                      {activeKeys.map((key) => {
+                        const cls = ASSET_CLASSES[key];
+                        const lvl = levels[key];
+                        const w   = weights[key] ?? 0;
+                        return (
+                          <div key={key} className="rounded-xl border border-white/[0.06] p-4" style={{ background: `${cls.color}08` }}>
+                            <div className="mb-3 flex items-center justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm" style={{ color: cls.color }}>{cls.icon}</span>
+                                  <span className="font-mono text-xs font-bold uppercase tracking-widest" style={{ color: cls.color }}>{cls.label}</span>
+                                </div>
+                                {selections[key].length > 0 && (
+                                  <p className="mt-0.5 font-mono text-[9px] uppercase tracking-widest text-white/45">
+                                    {selections[key].map((id) => cls.examples.find((e) => e.id === id)?.ticker ?? id).join(" · ")}
+                                  </p>
+                                )}
+                              </div>
+                              <motion.span key={w} initial={{ scale: 1.2, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }}
+                                className="font-mono text-2xl font-bold tabular-nums" style={{ color: cls.color }}>
+                                {w}%
+                              </motion.span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {([1, 2, 3] as Level[]).map((l) => {
+                                const active = lvl === l;
+                                return (
+                                  <motion.button key={l} whileTap={{ scale: 0.95 }}
+                                    onClick={() => setLevels((prev) => ({ ...prev, [key]: l }))}
+                                    className="rounded-lg border py-2.5 font-mono text-xs font-bold uppercase tracking-widest transition-all"
+                                    style={{ borderColor: active ? cls.color : "rgba(255,255,255,0.08)", background: active ? `${cls.color}20` : "transparent", color: active ? cls.color : "rgba(255,255,255,0.25)" }}>
+                                    {LEVEL_LABELS[l]}
+                                  </motion.button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Strategy name input */}
+                    <input type="text" placeholder={`Strategy ${strategies.length + 1}`} value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="mt-5 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 font-mono text-sm text-white placeholder-white/20 outline-none transition-all focus:border-[#00d4ff]/40" />
+                    </>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Builder footer */}
+            <div className="border-t border-[#00d4ff]/20 px-6 py-4">
+              {step < 4 ? (
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={nextStep}
+                  className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+                  {currentKey && selections[currentKey].length > 0 ? `NEXT → (${selections[currentKey].length} SELECTED)` : "SKIP →"}
+                </motion.button>
+              ) : (
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} onClick={deploy}
+                  className="w-full rounded-xl border border-[#30d158]/50 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  {editingIndex !== null ? "✓ SAVE CHANGES" : "⚡ DEPLOY STRATEGY"}
+                </motion.button>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            {/* Events */}
-            {"events_triggered" in result! && (result as GBMResult).events_triggered.length > 0 && (
-              <div className="mt-4 glass rounded-2xl p-5">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#ff9f0a]">
-                  Market Events
-                </p>
-                <div className="space-y-3">
-                  {(result as GBMResult).events_triggered.map((ev) => (
-                    <div key={ev.key} className="flex items-start gap-3">
-                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#ff9f0a]" />
-                      <div>
-                        <p className="text-sm font-medium text-white">{ev.headline}</p>
-                        <p className="text-xs text-white/30">at {Math.round(ev.step_frac * 100)}% of projection</p>
-                      </div>
+      {/* ══ TEST OVERLAY ══ */}
+      <AnimatePresence>
+        {testTarget && (
+          <motion.div key="test" className="fixed inset-0 z-50 flex flex-col"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ background: "rgba(0,0,0,0.97)", backgroundImage: "linear-gradient(rgba(48,209,88,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(48,209,88,0.02) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
+
+            {/* Test header */}
+            <div className="flex items-center justify-between border-b border-[#30d158]/20 px-6 py-4">
+              <div className="flex items-center gap-4">
+                {testStep !== "horizon" && (
+                  <button onClick={() => setTestStep(testStep === "results" ? "events" : "horizon")}
+                    className="font-mono text-xs text-[#30d158]/50 transition-colors hover:text-[#30d158]">← BACK</button>
+                )}
+                <span className="font-mono text-sm font-bold uppercase tracking-widest text-white">
+                  {testStep === "horizon" ? "TIME HORIZON" : testStep === "events" ? "MARKET EVENTS" : "SIMULATION RESULTS"}
+                </span>
+                <span className="font-mono text-[10px] text-white/45 uppercase tracking-widest">
+                  {testTarget.strategy.name}
+                </span>
+              </div>
+              <button onClick={() => setTestTarget(null)} className="font-mono text-lg leading-none text-white/55 transition-colors hover:text-white/80">×</button>
+            </div>
+
+            {/* Test body */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <AnimatePresence mode="wait">
+
+                {/* Step 1: Horizon */}
+                {testStep === "horizon" && (
+                  <motion.div key="horizon" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-sm">
+                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">HOW LONG DO YOU WANT TO TEST?</p>
+                    <div className="grid grid-cols-5 gap-3">
+                      {HORIZONS.map((y) => (
+                        <motion.button key={y} whileTap={{ scale: 0.95 }}
+                          onClick={() => setHorizon(y)}
+                          className="rounded-xl border py-5 font-mono text-sm font-bold transition-all"
+                          style={{
+                            borderColor: horizon === y ? "#30d158" : "rgba(255,255,255,0.08)",
+                            background:  horizon === y ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.02)",
+                            color:       horizon === y ? "#30d158" : "rgba(255,255,255,0.3)",
+                          }}>
+                          {y}Y
+                        </motion.button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    <p className="mt-6 text-center text-xs text-white/40">
+                      Simulation runs {horizon * 12} monthly steps using GBM with your allocation
+                    </p>
+                  </motion.div>
+                )}
 
-            {/* Asset contributions */}
-            {"asset_contributions" in result! && (
-              <div className="mt-4 glass rounded-2xl p-5">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wider text-white/30">Asset Contributions</p>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries((result as SimulationResult).asset_contributions).map(([a, pct]) => (
-                    <span key={a} className="rounded-full bg-white/[0.06] px-3 py-1 text-xs">
-                      <span className="capitalize text-white/50">{a}</span>{" "}
-                      <span className={pct >= 0 ? "text-[#30d158]" : "text-[#ff453a]"}>
-                        {pct > 0 ? "+" : ""}{pct.toFixed(1)}%
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+                {/* Step 2: Events */}
+                {testStep === "events" && (
+                  <motion.div key="events" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-xl">
+                    <p className="mb-5 font-mono text-[10px] uppercase tracking-widest text-white/50">
+                      SELECT ANY EVENTS AND SET WHEN THEY HAPPEN · {pickedEvents.length} SELECTED
+                    </p>
+
+                    {/* Positive group */}
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-[#30d158]" />
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158]">POSITIVE EVENTS</span>
+                    </div>
+                    <div className="mb-5 space-y-2">
+                      {POS_EVENTS.map((ev) => {
+                        const on = pickedEvents.includes(ev.key);
+                        const yr = eventTimings[ev.key] ?? Math.round(horizon / 2);
+                        return (
+                          <div key={ev.key} className="overflow-hidden rounded-xl border transition-all"
+                            style={{ borderColor: on ? "#30d158" : "rgba(255,255,255,0.07)", background: on ? "rgba(48,209,88,0.06)" : "rgba(255,255,255,0.02)" }}>
+                            <button onClick={() => toggleEvent(ev.key)} className="flex w-full items-start gap-3 p-3.5 text-left">
+                              <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
+                                style={{ borderColor: on ? "#30d158" : "rgba(255,255,255,0.15)", background: on ? "#30d158" : "transparent", color: "#000" }}>
+                                {on ? "✓" : ""}
+                              </div>
+                              <div>
+                                <p className="font-mono text-xs font-bold" style={{ color: on ? "#30d158" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
+                                <p className="mt-0.5 text-[11px] leading-snug text-white/55">{ev.description}</p>
+                              </div>
+                            </button>
+                            <AnimatePresence>
+                              {on && (
+                                <motion.div key="timing" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                                  <div className="flex items-center gap-4 border-t border-[#30d158]/20 px-4 py-3">
+                                    <span className="font-mono text-[10px] uppercase tracking-widest text-white/55 flex-shrink-0">YEAR</span>
+                                    <input type="range" min={1} max={horizon} step={1} value={yr}
+                                      onChange={(e) => setEventYear(ev.key, parseInt(e.target.value))}
+                                      className="flex-1 cursor-pointer" style={{ accentColor: "#30d158" }} />
+                                    <span className="font-mono text-sm font-bold tabular-nums text-[#30d158] w-6 text-right">{yr}</span>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Negative group */}
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-[#ff453a]" />
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff453a]">NEGATIVE EVENTS</span>
+                    </div>
+                    <div className="space-y-2">
+                      {NEG_EVENTS.map((ev) => {
+                        const on = pickedEvents.includes(ev.key);
+                        const yr = eventTimings[ev.key] ?? Math.round(horizon / 2);
+                        return (
+                          <div key={ev.key} className="overflow-hidden rounded-xl border transition-all"
+                            style={{ borderColor: on ? "#ff453a" : "rgba(255,255,255,0.07)", background: on ? "rgba(255,69,58,0.06)" : "rgba(255,255,255,0.02)" }}>
+                            <button onClick={() => toggleEvent(ev.key)} className="flex w-full items-start gap-3 p-3.5 text-left">
+                              <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-all"
+                                style={{ borderColor: on ? "#ff453a" : "rgba(255,255,255,0.15)", background: on ? "#ff453a" : "transparent", color: "#000" }}>
+                                {on ? "✓" : ""}
+                              </div>
+                              <div>
+                                <p className="font-mono text-xs font-bold" style={{ color: on ? "#ff453a" : "rgba(255,255,255,0.7)" }}>{ev.label}</p>
+                                <p className="mt-0.5 text-[11px] leading-snug text-white/55">{ev.description}</p>
+                              </div>
+                            </button>
+                            <AnimatePresence>
+                              {on && (
+                                <motion.div key="timing" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                                  <div className="flex items-center gap-4 border-t border-[#ff453a]/20 px-4 py-3">
+                                    <span className="font-mono text-[10px] uppercase tracking-widest text-white/55 flex-shrink-0">YEAR</span>
+                                    <input type="range" min={1} max={horizon} step={1} value={yr}
+                                      onChange={(e) => setEventYear(ev.key, parseInt(e.target.value))}
+                                      className="flex-1 cursor-pointer" style={{ accentColor: "#ff453a" }} />
+                                    <span className="font-mono text-sm font-bold tabular-nums text-[#ff453a] w-6 text-right">{yr}</span>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Results */}
+                {testStep === "results" && simResult && (
+                  <motion.div key="results" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.18 }} className="mx-auto max-w-2xl">
+                    <p className="mb-6 font-mono text-[10px] uppercase tracking-widest text-white/50">
+                      {horizon}Y SIMULATION · {testTarget.strategy.name}
+                    </p>
+
+                    {/* Metrics */}
+                    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <Metric label="FINAL VALUE"   value={`$${simResult.finalValue.toFixed(0)}`} color={simResult.totalReturn >= 0 ? "#30d158" : "#ff453a"} />
+                      <Metric label="TOTAL RETURN"  value={`${simResult.totalReturn >= 0 ? "+" : ""}${simResult.totalReturn.toFixed(1)}%`} color={simResult.totalReturn >= 0 ? "#30d158" : "#ff453a"} />
+                      <Metric label="START VALUE"   value="$10,000" color="rgba(255,255,255,0.4)" />
+                    </div>
+
+                    {/* Chart */}
+                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                      <MiniChart values={simResult.values} color={simResult.totalReturn >= 0 ? "#30d158" : "#ff453a"} />
+                    </div>
+
+                    {/* Events fired */}
+                    {pickedEvents.length > 0 && (
+                      <div className="mt-5 rounded-xl border border-white/[0.06] p-4">
+                        <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-white/50">EVENTS INJECTED</p>
+                        <div className="flex flex-wrap gap-2">
+                          {pickedEvents.map((key) => {
+                            const ev  = GAME_EVENTS.find((e) => e.key === key)!;
+                            const pos = ev.type === "positive";
+                            const yr  = eventTimings[key] ?? Math.round(horizon / 2);
+                            return (
+                              <span key={key} className="rounded-full border px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wide"
+                                style={{ borderColor: pos ? "rgba(48,209,88,0.4)" : "rgba(255,69,58,0.4)", color: pos ? "#30d158" : "#ff453a", background: pos ? "rgba(48,209,88,0.06)" : "rgba(255,69,58,0.06)" }}>
+                                {ev.label} · Y{yr}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Coach feedback */}
+                    <div className="mt-5 rounded-xl border border-[#00d4ff]/20 bg-[#00d4ff]/04 p-5">
+                      <div className="mb-3 flex items-center gap-2">
+                        <span className="font-mono text-sm text-[#00d4ff]">◈</span>
+                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#00d4ff]">COACH FEEDBACK</span>
+                      </div>
+                      {coachLoading ? (
+                        <div className="flex items-center gap-3">
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-[#00d4ff]/60" style={{ animationDelay: "0ms" }} />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-[#00d4ff]/60" style={{ animationDelay: "150ms" }} />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-[#00d4ff]/60" style={{ animationDelay: "300ms" }} />
+                          <span className="font-mono text-[11px] text-white/50">Analysing your strategy…</span>
+                        </div>
+                      ) : coachText ? (
+                        <p className="text-sm leading-relaxed text-white/70">{coachText}</p>
+                      ) : (
+                        <p className="font-mono text-[11px] text-white/45">Coach unavailable</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Test footer */}
+            <div className="border-t border-[#30d158]/20 px-6 py-4">
+              {testStep === "horizon" && (
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  onClick={() => setTestStep("events")}
+                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  NEXT → SELECT EVENTS
+                </motion.button>
+              )}
+              {testStep === "events" && (
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  onClick={runTest}
+                  className="w-full rounded-xl border border-[#30d158]/40 bg-[#30d158]/10 py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
+                  ▶ RUN SIMULATION
+                </motion.button>
+              )}
+              {testStep === "results" && (
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  onClick={() => { setTestStep("events"); setSimResult(null); }}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 font-mono text-sm font-bold uppercase tracking-widest text-white/40 transition-all hover:bg-white/[0.06]">
+                  ↺ RUN AGAIN
+                </motion.button>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -283,24 +817,74 @@ export default function SandboxPage() {
   );
 }
 
-function Metric({ label, value, positive }: { label: string; value: string; positive: boolean }) {
+/* ─── Strategy card ─── */
+function StrategyCard({ strategy, onDelete, onEdit, onTest }: {
+  strategy: Strategy;
+  onDelete: () => void;
+  onEdit: () => void;
+  onTest: () => void;
+}) {
+  const entries = Object.entries(strategy.allocation).sort(([, a], [, b]) => b - a);
+  const ret     = strategy.result?.total_return ?? null;
+  const isPos   = ret === null || ret >= 0;
+
   return (
-    <div className="glass rounded-xl p-4">
-      <p className="text-xs text-white/30">{label}</p>
-      <p className={`mt-1 font-mono-data text-xl font-bold ${positive ? "text-[#30d158]" : "text-[#ff453a]"}`}>
-        {value}
-      </p>
+    <div className="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all hover:border-white/10">
+      {/* Name + return */}
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <p className="font-mono text-sm font-bold text-white">{strategy.name}</p>
+        {ret !== null && (
+          <p className="font-mono text-sm font-bold tabular-nums flex-shrink-0" style={{ color: isPos ? "#30d158" : "#ff453a" }}>
+            {isPos ? "+" : ""}{ret.toFixed(1)}%
+          </p>
+        )}
+      </div>
+
+      {/* Allocation bars */}
+      <div className="flex-1 space-y-2">
+        {entries.map(([key, pct]) => {
+          const cls   = ASSET_CLASSES[key as AssetClassKey];
+          const color = cls?.color ?? "#555";
+          const label = cls?.label ?? key;
+          return (
+            <div key={key}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-mono text-[9px] uppercase tracking-widest text-white/50">{label}</span>
+                <span className="font-mono text-[9px] tabular-nums text-white/55">{pct}%</span>
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-white/[0.05]">
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, opacity: 0.7 }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Action buttons */}
+      <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/[0.05] pt-4">
+        <button onClick={onDelete}
+          className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#ff453a]/40 hover:bg-[#ff453a]/08 hover:text-[#ff453a]">
+          DELETE
+        </button>
+        <button onClick={onEdit}
+          className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/08 hover:text-[#00d4ff]">
+          EDIT
+        </button>
+        <button onClick={onTest}
+          className="rounded-lg border border-[#30d158]/30 bg-[#30d158]/08 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/15">
+          TEST
+        </button>
+      </div>
     </div>
   );
 }
 
-function MCBand({ label, value, color }: { label: string; value?: number; color: string }) {
+/* ─── Metric tile ─── */
+function Metric({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div>
-      <p className="text-[10px] text-white/30">{label}</p>
-      <p className="font-mono-data text-sm font-semibold" style={{ color }}>
-        ${value?.toFixed(0) ?? "—"}
-      </p>
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-white/50">{label}</p>
+      <p className="mt-1 font-mono text-xl font-bold tabular-nums" style={{ color }}>{value}</p>
     </div>
   );
 }
