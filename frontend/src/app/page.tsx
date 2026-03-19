@@ -8,7 +8,7 @@ import { authRegister, authLogin } from "@/lib/api";
 import IntroScenes from "@/components/intro-scenes";
 import OnboardingDialog from "@/components/onboarding-dialog";
 
-type Mode = "auth" | "intro" | "onboarding";
+type Mode = "auth" | "intro" | "onboarding" | "guest-intro";
 type Tab = "register" | "login";
 
 export default function HomePage() {
@@ -83,8 +83,24 @@ export default function HomePage() {
     else handleLogin();
   }
 
+  function handleGuest() {
+    setToken("guest");
+    setUser({
+      id: "guest",
+      username: "guest",
+      full_name: "Guest Player",
+      email: "guest@local",
+      invest_iq: 0,
+      risk_profile: "unknown",
+    });
+    setMode("guest-intro");
+  }
+
   if (mode === "intro") {
     return <IntroScenes onComplete={() => setMode("onboarding")} />;
+  }
+  if (mode === "guest-intro") {
+    return <IntroScenes onComplete={() => router.push("/home")} />;
   }
   if (mode === "onboarding") {
     return (
@@ -233,7 +249,22 @@ export default function HomePage() {
           </motion.button>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-700">
+        <div className="mt-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/8" />
+          <span className="text-xs text-slate-600">or</span>
+          <div className="h-px flex-1 bg-white/8" />
+        </div>
+
+        <motion.button
+          className="mt-3 w-full rounded-xl border border-white/10 bg-transparent py-3 text-sm font-semibold text-slate-400 transition-colors hover:border-white/20 hover:text-slate-200"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleGuest}
+        >
+          Continue as Guest
+        </motion.button>
+
+        <p className="mt-5 text-center text-xs text-slate-700">
           START Hack 2026 · Cache Me If You Can
         </p>
       </motion.div>
