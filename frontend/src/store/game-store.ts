@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Allocation, User, Strategy, LongtermPortfolio } from "@/lib/types";
+import type { Allocation, User, Strategy, LongtermPortfolio, BattleRecord } from "@/lib/types";
 import { DEFAULT_ALLOCATION, ASSET_KEYS } from "@/lib/constants";
 
 interface GameState {
@@ -10,6 +10,10 @@ interface GameState {
   setUser: (u: User | null) => void;
   setToken: (t: string | null) => void;
   logout: () => void;
+
+  /* Player identity */
+  playerName: string;
+  setPlayerName: (n: string) => void;
 
   /* Learning progression */
   unlockedAssets: string[];
@@ -25,6 +29,10 @@ interface GameState {
   addStrategy: (s: Strategy) => void;
   updateStrategy: (index: number, s: Strategy) => void;
   deleteStrategy: (index: number) => void;
+
+  /* Battle records (local leaderboard) */
+  battleRecords: BattleRecord[];
+  addBattleRecord: (r: BattleRecord) => void;
 
   /* Long-term portfolio */
   longtermPortfolio: LongtermPortfolio | null;
@@ -80,6 +88,9 @@ export const useGameStore = create<GameState>()(
       setToken: (t) => set({ token: t }),
       logout: () => set({ user: null, token: null, unlockedAssets: ["stocks"], strategies: [], longtermPortfolio: null }),
 
+      playerName: "",
+      setPlayerName: (n) => set({ playerName: n }),
+
       unlockedAssets: ["stocks"],
       unlockAsset: (asset) =>
         set((state) => ({
@@ -100,6 +111,9 @@ export const useGameStore = create<GameState>()(
       updateStrategy: (index, s) => set((state) => ({ strategies: state.strategies.map((st, i) => i === index ? s : st) })),
       deleteStrategy: (index) => set((state) => ({ strategies: state.strategies.filter((_, i) => i !== index) })),
 
+      battleRecords: [],
+      addBattleRecord: (r) => set((state) => ({ battleRecords: [r, ...state.battleRecords].slice(0, 20) })),
+
       longtermPortfolio: null,
       setLongtermPortfolio: (p) => set({ longtermPortfolio: p }),
     }),
@@ -108,8 +122,10 @@ export const useGameStore = create<GameState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        playerName: state.playerName,
         unlockedAssets: state.unlockedAssets,
         strategies: state.strategies,
+        battleRecords: state.battleRecords,
         longtermPortfolio: state.longtermPortfolio,
       }),
     },

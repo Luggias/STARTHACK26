@@ -6,6 +6,7 @@ import { useGameStore } from "@/store/game-store";
 import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
+import { BattleArena } from "./battle";
 
 /* ══════════════════════════════════════════════
    TYPES
@@ -197,10 +198,17 @@ function MiniChart({ values, color }: { values: number[]; color: string }) {
    PAGE
 ══════════════════════════════════════════════ */
 export default function SandboxPage() {
-  const strategies     = useGameStore((s) => s.strategies);
-  const addStrategy    = useGameStore((s) => s.addStrategy);
-  const updateStrategy = useGameStore((s) => s.updateStrategy);
-  const deleteStrategy = useGameStore((s) => s.deleteStrategy);
+  const strategies       = useGameStore((s) => s.strategies);
+  const addStrategy      = useGameStore((s) => s.addStrategy);
+  const updateStrategy   = useGameStore((s) => s.updateStrategy);
+  const deleteStrategy   = useGameStore((s) => s.deleteStrategy);
+  const playerName       = useGameStore((s) => s.playerName);
+  const setPlayerName    = useGameStore((s) => s.setPlayerName);
+  const battleRecords    = useGameStore((s) => s.battleRecords);
+  const addBattleRecord  = useGameStore((s) => s.addBattleRecord);
+
+  const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
+  const [nameInput, setNameInput]       = useState("");
 
   /* Builder state */
   const [building, setBuilding]           = useState(false);
@@ -364,6 +372,54 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         backgroundSize: "48px 48px",
       }}
     >
+      {/* ── Name modal (blocks UI until name is set) ── */}
+      <AnimatePresence>
+        {!playerName && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ background: "rgba(6,6,14,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
+            <motion.div className="w-full max-w-sm px-8 py-12 rounded-2xl border border-[#00d4ff]/25 bg-white/[0.02]"
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
+              <p className="mb-2 font-mono text-2xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
+              <p className="mb-8 text-xs text-white/40">Your name will appear on the leaderboard after each battle.</p>
+              <input
+                type="text" maxLength={20} placeholder="e.g. WallStreetWolf"
+                value={nameInput} onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && nameInput.trim() && setPlayerName(nameInput.trim())}
+                className="mb-4 w-full rounded-xl border border-[#00d4ff]/25 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white placeholder-white/20 outline-none focus:border-[#00d4ff]/60 transition-all" />
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                disabled={!nameInput.trim()}
+                onClick={() => setPlayerName(nameInput.trim())}
+                className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 font-mono text-sm font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
+                ENTER ARENA →
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Battle arena overlay ── */}
+      <AnimatePresence>
+        {battleTarget && (
+          <BattleArena
+            strategy={battleTarget}
+            playerName={playerName}
+            onClose={() => setBattleTarget(null)}
+            onResult={(won, returnPct, cpuReturnPct) => {
+              addBattleRecord({
+                playerName,
+                strategyName: battleTarget.name,
+                returnPct,
+                cpuReturnPct,
+                won,
+                date: new Date().toLocaleDateString(),
+              });
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
         <div className="h-px flex-1 bg-[#00d4ff]/20" />
@@ -399,8 +455,53 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               onDelete={() => deleteStrategy(i)}
               onEdit={() => openBuilder(i)}
               onTest={() => openTest(s, i)}
+              onBattle={() => setBattleTarget(s)}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Leaderboard ── */}
+      {battleRecords.length > 0 && (
+        <div className="mt-12">
+          <div className="mb-4 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#ff9f0a]/20" />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-[0.3em] text-[#ff9f0a]">⚔ BATTLE RECORDS</span>
+            <div className="h-px flex-1 bg-[#ff9f0a]/20" />
+          </div>
+          <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/[0.05]">
+                  {["#", "PLAYER", "STRATEGY", "RETURN", "A.I.", "RESULT", "DATE"].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left font-mono text-[9px] uppercase tracking-widest text-white/35">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {battleRecords.map((r, i) => (
+                  <tr key={i} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 font-mono text-[10px] text-white/30">{i + 1}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-bold text-white">{r.playerName}</td>
+                    <td className="px-4 py-3 font-mono text-[10px] text-white/55">{r.strategyName}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-bold tabular-nums" style={{ color: r.returnPct >= 0 ? "#30d158" : "#ff453a" }}>
+                      {r.returnPct >= 0 ? "+" : ""}{r.returnPct.toFixed(1)}%
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-white/45">
+                      {r.cpuReturnPct >= 0 ? "+" : ""}{r.cpuReturnPct.toFixed(1)}%
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-widest"
+                        style={{ background: r.won ? "rgba(48,209,88,0.12)" : "rgba(255,69,58,0.12)", color: r.won ? "#30d158" : "#ff453a" }}>
+                        {r.won ? "WIN" : "LOSS"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[9px] text-white/30">{r.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -818,11 +919,12 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
 }
 
 /* ─── Strategy card ─── */
-function StrategyCard({ strategy, onDelete, onEdit, onTest }: {
+function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
   strategy: Strategy;
   onDelete: () => void;
   onEdit: () => void;
   onTest: () => void;
+  onBattle: () => void;
 }) {
   const entries = Object.entries(strategy.allocation).sort(([, a], [, b]) => b - a);
   const ret     = strategy.result?.total_return ?? null;
@@ -861,19 +963,25 @@ function StrategyCard({ strategy, onDelete, onEdit, onTest }: {
       </div>
 
       {/* Action buttons */}
-      <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/[0.05] pt-4">
-        <button onClick={onDelete}
-          className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#ff453a]/40 hover:bg-[#ff453a]/08 hover:text-[#ff453a]">
-          DELETE
-        </button>
-        <button onClick={onEdit}
-          className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/08 hover:text-[#00d4ff]">
-          EDIT
-        </button>
-        <button onClick={onTest}
-          className="rounded-lg border border-[#30d158]/30 bg-[#30d158]/08 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/15">
-          TEST
-        </button>
+      <div className="mt-5 space-y-2 border-t border-white/[0.05] pt-4">
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={onDelete}
+            className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#ff453a]/40 hover:bg-[#ff453a]/08 hover:text-[#ff453a]">
+            DELETE
+          </button>
+          <button onClick={onEdit}
+            className="rounded-lg border border-white/[0.06] py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-white/50 transition-all hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/08 hover:text-[#00d4ff]">
+            EDIT
+          </button>
+          <button onClick={onTest}
+            className="rounded-lg border border-[#30d158]/30 bg-[#30d158]/08 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/15">
+            TEST
+          </button>
+        </div>
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={onBattle}
+          className="w-full rounded-lg border border-[#ff9f0a]/35 bg-[#ff9f0a]/08 py-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/15">
+          ⚔ BATTLE MODE
+        </motion.button>
       </div>
     </div>
   );

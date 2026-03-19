@@ -152,3 +152,12 @@ export interface LeaderboardEntry {
   avg_return: number;
   invest_iq: number;
 }
+
+export interface BattleRecord {
+  playerName: string;
+  strategyName: string;
+  returnPct: number;
+  cpuReturnPct: number;
+  won: boolean;
+  date: string;
+}
