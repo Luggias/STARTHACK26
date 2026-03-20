@@ -864,6 +864,10 @@ def presence_challenge(req: ChallengeReq):
         raise HTTPException(400, "Player is in battle")
     if sender.get("in_battle"):
         raise HTTPException(400, "You are already in a battle")
+    if not target.get("has_strategy"):
+        raise HTTPException(400, "Player has no strategy yet")
+    if not sender.get("has_strategy"):
+        raise HTTPException(400, "You need a strategy first")
     # Check if sender already has an outgoing challenge (prevent spamming multiple people)
     for tid, ch in _pending_challenges.items():
         if ch.get("from_id") == req.from_id and not ch.get("room_id") and time.time() - ch["ts"] < 30:
