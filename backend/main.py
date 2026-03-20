@@ -40,6 +40,16 @@ from auth import (
 )
 from ticker import fetch_ticker_prices
 from data.gbm import simulate_gbm, simulate_montecarlo
+from db.sqlite_store import (
+    init_db as _init_sqlite,
+    get_user as _sqlite_get_user,
+    create_user as _sqlite_create_user,
+    update_user_stats as _sqlite_update_user_stats,
+    save_battle as _sqlite_save_battle,
+    get_battles as _sqlite_get_battles,
+    get_iq_leaderboard as _sqlite_get_iq_leaderboard,
+    get_highscore_leaderboard as _sqlite_get_highscore_leaderboard,
+)
 
 # Warn about missing env vars but don't crash — DB endpoints will fail gracefully
 for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
@@ -59,6 +69,9 @@ app.add_middleware(
 
 ai_client = anthropic.Anthropic() if os.getenv("ANTHROPIC_API_KEY") else None
 
+# Initialise SQLite persistent store (creates tables on first run)
+_init_sqlite()
+
 # ---------------------------------------------------------------------------
 # In-memory fallback store (used when Supabase is not configured)
 # ---------------------------------------------------------------------------
@@ -70,8 +83,6 @@ _mem_users: dict[str, dict] = {}
 _mem_strategies: dict[str, list] = {}
 # user_id -> longterm portfolio
 _mem_portfolios: dict[str, dict] = {}
-# player_name -> {"iq": int, "best_return": float}
-_guest_stats: dict[str, dict] = {}
 
 
 def _db_create_user(row: dict) -> dict:
@@ -744,10 +755,6 @@ def get_player_battle_history(player_name: str, limit: int = 20):
 # Username registry — unique usernames, in-memory for hackathon
 # ---------------------------------------------------------------------------
 
-# lowercased username -> {"password_hash": str, "display_name": str}
-_taken_usernames: dict[str, dict] = {}
-
-
 class ClaimUsernameReq(BaseModel):
     username: str
     password: str = ""
@@ -760,24 +767,20 @@ def claim_username(req: ClaimUsernameReq):
         raise HTTPException(400, "Username must be 1-20 characters")
     if not req.password or len(req.password) < 3:
         raise HTTPException(400, "Password must be at least 3 characters")
-    lower = name.lower()
-    existing = _taken_usernames.get(lower)
+    existing = _sqlite_get_user(name)
     if existing:
         # Username exists — verify password (login)
         if not verify_password(req.password, existing["password_hash"]):
             raise HTTPException(401, "Wrong password")
         return {"ok": True, "username": existing["display_name"]}
     # New username — register
-    _taken_usernames[lower] = {
-        "password_hash": hash_password(req.password),
-        "display_name": name,
-    }
-    return {"ok": True, "username": name}
+    user = _sqlite_create_user(name, name, hash_password(req.password))
+    return {"ok": True, "username": user["display_name"]}
 
 
 @app.post("/username/release")
 def release_username(req: ClaimUsernameReq):
-    _taken_usernames.pop(req.username.strip().lower(), None)
+    # No-op: we don't delete persistent users
     return {"ok": True}
 
 
@@ -964,35 +967,60 @@ class ReportResultReq(BaseModel):
     player_name: str
     won: bool
     return_pct: float
+    opponent_return_pct: float = 0.0
     is_pvp: bool
+    opponent_name: str = "A.I. FUND"
+    strategy_name: str = ""
 
 
 @app.post("/guest/report-result")
 def guest_report_result(req: ReportResultReq):
-    stats = _guest_stats.setdefault(req.player_name, {"iq": 0, "best_return": -999.0})
+    user = _sqlite_get_user(req.player_name)
+    if not user:
+        # Auto-create a guest row if it doesn't exist yet (e.g. legacy client)
+        user = _sqlite_create_user(req.player_name, req.player_name, hash_password(""))
+    iq = user["iq"]
+    best_return = user["best_return"]
     if req.is_pvp:
-        stats["iq"] = max(0, stats["iq"] + (50 if req.won else 25))
-    if req.return_pct > stats["best_return"]:
-        stats["best_return"] = req.return_pct
-    return {"iq": stats["iq"], "best_return": stats["best_return"]}
+        iq = max(0, iq + (50 if req.won else 25))
+    if req.return_pct > best_return:
+        best_return = req.return_pct
+    _sqlite_update_user_stats(req.player_name, iq, best_return)
+    _sqlite_save_battle(
+        player_name=req.player_name,
+        opponent_name=req.opponent_name,
+        strategy_name=req.strategy_name,
+        player_return=req.return_pct,
+        opponent_return=req.opponent_return_pct,
+        won=req.won,
+        is_pvp=req.is_pvp,
+    )
+    return {"iq": iq, "best_return": best_return}
 
 
 @app.get("/guest/leaderboard")
 def guest_leaderboard():
-    entries = [{"player_name": k, **v} for k, v in _guest_stats.items()]
-    iq_top5 = sorted(entries, key=lambda e: e["iq"], reverse=True)[:5]
-    highscore_top5 = sorted(
-        [e for e in entries if e["best_return"] > -999],
-        key=lambda e: e["best_return"],
-        reverse=True,
-    )[:5]
-    return {"iq_leaderboard": iq_top5, "highscore_leaderboard": highscore_top5}
+    return {
+        "iq_leaderboard": _sqlite_get_iq_leaderboard(),
+        "highscore_leaderboard": _sqlite_get_highscore_leaderboard(),
+    }
 
 
 @app.get("/guest/stats/{player_name}")
 def guest_stats(player_name: str):
-    stats = _guest_stats.get(player_name, {"iq": 0, "best_return": -999.0})
-    return {"player_name": player_name, "iq": stats["iq"]}
+    user = _sqlite_get_user(player_name)
+    iq = user["iq"] if user else 0
+    return {"player_name": player_name, "iq": iq}
+
+
+@app.get("/guest/battles")
+def guest_all_battles(limit: int = 50):
+    return {"battles": _sqlite_get_battles(None, limit)}
+
+
+@app.get("/guest/battles/{player_name}")
+def guest_player_battles(player_name: str, limit: int = 50):
+    return {"battles": _sqlite_get_battles(player_name, limit)}
 
 
 # ---------------------------------------------------------------------------

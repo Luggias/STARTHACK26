@@ -8,7 +8,8 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats } from "@/lib/api";
+import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats, getGuestBattles } from "@/lib/api";
+import type { GuestBattleRecord } from "@/lib/api";
 import type { OnlinePlayer } from "@/lib/ws";
 
 /* ══════════════════════════════════════════════
@@ -225,6 +226,7 @@ export default function SandboxPage() {
   const [localIq, setLocalIq]           = useState(0);
   const [iqLeaderboard, setIqLeaderboard]               = useState<{ player_name: string; iq: number }[]>([]);
   const [highscoreLeaderboard, setHighscoreLeaderboard] = useState<{ player_name: string; best_return: number }[]>([]);
+  const [serverBattleRecords, setServerBattleRecords]   = useState<GuestBattleRecord[]>([]);
 
   const handleClaimName = async () => {
     const name = nameInput.trim();
@@ -316,6 +318,7 @@ export default function SandboxPage() {
     const fetchAll = () => {
       getGuestStats(playerName).then(r => { if (active) setLocalIq(r.iq); }).catch(() => {});
       getGuestLeaderboard().then(r => { if (active) { setIqLeaderboard(r.iq_leaderboard); setHighscoreLeaderboard(r.highscore_leaderboard); } }).catch(() => {});
+      getGuestBattles(playerName).then(r => { if (active) setServerBattleRecords(r); }).catch(() => {});
     };
     fetchAll();
     const iv = setInterval(fetchAll, 10000);
@@ -719,7 +722,9 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 opponentName: pvpOpponent ?? "A.I. FUND",
               });
               const isPvP = !!pvpOpponent;
-              reportResult(playerName, won, returnPct, isPvP).then(r => setLocalIq(r.iq)).catch(() => {});
+              reportResult(playerName, won, returnPct, isPvP, cpuReturnPct, pvpOpponent ?? "A.I. FUND", battleTarget.name)
+                .then(r => { setLocalIq(r.iq); getGuestBattles(playerName).then(b => setServerBattleRecords(b)).catch(() => {}); })
+                .catch(() => {});
             }}
             opponentName={pvpOpponent ?? undefined}
             opponentAllocation={pvpOpponentAlloc ?? undefined}
@@ -899,7 +904,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       )}
 
       {/* ── Battle Records ── */}
-      {battleRecords.length > 0 && (
+      {serverBattleRecords.length > 0 && (
         <div className="mt-12">
           <div className="mb-4 flex items-center gap-4">
             <div className="h-px flex-1 bg-[#ff9f0a]/20" />
@@ -916,17 +921,17 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 </tr>
               </thead>
               <tbody>
-                {battleRecords.map((r, i) => (
-                  <tr key={i} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
+                {serverBattleRecords.map((r, i) => (
+                  <tr key={r.id} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
                     <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/30">{i + 1}</td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold text-white">{r.playerName}</td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.strategyName}</td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.returnPct >= 0 ? "#30d158" : "#ff453a" }}>
-                      {r.returnPct >= 0 ? "+" : ""}{r.returnPct.toFixed(1)}%
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold text-white">{r.player_name}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.strategy_name}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
+                      {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.opponentName ?? "A.I. FUND"}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.opponent_name}</td>
                     <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm tabular-nums text-white/45">
-                      {r.cpuReturnPct >= 0 ? "+" : ""}{r.cpuReturnPct.toFixed(1)}%
+                      {r.opponent_return >= 0 ? "+" : ""}{r.opponent_return.toFixed(1)}%
                     </td>
                     <td className="px-4 py-3 md:py-3.5">
                       <span className="rounded-full px-2.5 py-1 md:px-3 md:py-1.5 font-mono text-[9px] md:text-xs font-bold uppercase tracking-widest"
@@ -934,7 +939,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         {r.won ? "WIN" : "LOSS"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[9px] md:text-xs text-white/30">{r.date}</td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[9px] md:text-xs text-white/30">{r.played_at?.split("T")[0] ?? ""}</td>
                   </tr>
                 ))}
               </tbody>

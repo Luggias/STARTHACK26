@@ -373,10 +373,21 @@ export async function reportResult(
   won: boolean,
   returnPct: number,
   isPvP: boolean,
+  opponentReturnPct = 0,
+  opponentName = "A.I. FUND",
+  strategyName = "",
 ): Promise<{ iq: number; best_return: number }> {
   return fetchJson("/guest/report-result", {
     method: "POST",
-    body: JSON.stringify({ player_name: playerName, won, return_pct: returnPct, is_pvp: isPvP }),
+    body: JSON.stringify({
+      player_name: playerName,
+      won,
+      return_pct: returnPct,
+      opponent_return_pct: opponentReturnPct,
+      is_pvp: isPvP,
+      opponent_name: opponentName,
+      strategy_name: strategyName,
+    }),
   });
 }
 
@@ -389,4 +400,21 @@ export async function getGuestLeaderboard(): Promise<{
 
 export async function getGuestStats(playerName: string): Promise<{ player_name: string; iq: number }> {
   return fetchJson(`/guest/stats/${encodeURIComponent(playerName)}`);
+}
+
+export interface GuestBattleRecord {
+  id: number;
+  player_name: string;
+  opponent_name: string;
+  strategy_name: string;
+  player_return: number;
+  opponent_return: number;
+  won: number;
+  is_pvp: number;
+  played_at: string;
+}
+
+export async function getGuestBattles(playerName: string, limit = 50): Promise<GuestBattleRecord[]> {
+  const data = await fetchJson<{ battles: GuestBattleRecord[] }>(`/guest/battles/${encodeURIComponent(playerName)}?limit=${limit}`);
+  return data.battles;
 }
