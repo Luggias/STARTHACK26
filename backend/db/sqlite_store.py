@@ -93,6 +93,24 @@ def init_db() -> None:
             risk_profile TEXT DEFAULT 'unknown',
             created_at TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS strategies (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            allocation TEXT NOT NULL,
+            scenario_key TEXT,
+            result TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS portfolios (
+            user_id TEXT PRIMARY KEY,
+            allocation TEXT NOT NULL,
+            initial_amount_chf REAL DEFAULT 10000.0,
+            current_return REAL DEFAULT 0.0,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     c.commit()
 
@@ -130,6 +148,79 @@ def sqlite_find_user_by_email(email: str) -> dict | None:
 def sqlite_find_user_by_id(uid: str) -> dict | None:
     row = _conn().execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
     return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Strategies (SQLite fallback)
+# ---------------------------------------------------------------------------
+
+def sqlite_save_strategy(row: dict) -> dict:
+    c = _conn()
+    c.execute(
+        """INSERT INTO strategies (id, user_id, name, allocation, scenario_key, result)
+           VALUES (:id, :user_id, :name, :allocation, :scenario_key, :result)""",
+        {
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "name": row["name"],
+            "allocation": json.dumps(row.get("allocation", {})),
+            "scenario_key": row.get("scenario_key"),
+            "result": json.dumps(row.get("result")) if row.get("result") else None,
+        },
+    )
+    c.commit()
+    r = c.execute("SELECT * FROM strategies WHERE id = ?", (row["id"],)).fetchone()
+    d = dict(r)
+    d["allocation"] = json.loads(d["allocation"]) if d["allocation"] else {}
+    d["result"] = json.loads(d["result"]) if d.get("result") else None
+    return d
+
+
+def sqlite_get_strategies(user_id: str) -> list[dict]:
+    rows = _conn().execute(
+        "SELECT * FROM strategies WHERE user_id = ? ORDER BY created_at ASC", (user_id,)
+    ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["allocation"] = json.loads(d["allocation"]) if d["allocation"] else {}
+        d["result"] = json.loads(d["result"]) if d.get("result") else None
+        result.append(d)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Portfolios (SQLite fallback)
+# ---------------------------------------------------------------------------
+
+def sqlite_upsert_portfolio(row: dict) -> dict:
+    c = _conn()
+    c.execute(
+        """INSERT INTO portfolios (user_id, allocation, initial_amount_chf, current_return)
+           VALUES (:user_id, :allocation, :initial_amount_chf, :current_return)
+           ON CONFLICT(user_id) DO UPDATE SET
+               allocation = excluded.allocation,
+               initial_amount_chf = excluded.initial_amount_chf,
+               current_return = excluded.current_return,
+               updated_at = datetime('now')""",
+        {
+            "user_id": row["user_id"],
+            "allocation": json.dumps(row.get("allocation", {})),
+            "initial_amount_chf": row.get("initial_amount_chf", 10000.0),
+            "current_return": row.get("current_return", 0.0),
+        },
+    )
+    c.commit()
+    return sqlite_get_portfolio(row["user_id"])  # type: ignore[return-value]
+
+
+def sqlite_get_portfolio(user_id: str) -> dict | None:
+    row = _conn().execute("SELECT * FROM portfolios WHERE user_id = ?", (user_id,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["allocation"] = json.loads(d["allocation"]) if d["allocation"] else {}
+    return d
 
 
 # ---------------------------------------------------------------------------

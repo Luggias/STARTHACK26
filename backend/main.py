@@ -50,6 +50,10 @@ from db.sqlite_store import (
     sqlite_create_user as _sqlite_create_reg_user,
     sqlite_find_user_by_email as _sqlite_find_user_by_email,
     sqlite_find_user_by_id as _sqlite_find_user_by_id,
+    sqlite_save_strategy as _sqlite_save_strategy,
+    sqlite_get_strategies as _sqlite_get_strategies,
+    sqlite_upsert_portfolio as _sqlite_upsert_portfolio,
+    sqlite_get_portfolio as _sqlite_get_portfolio,
     get_iq_leaderboard as _sqlite_get_iq_leaderboard,
     get_highscore_leaderboard as _sqlite_get_highscore_leaderboard,
     get_relative_return_leaderboard as _sqlite_get_relative_return_leaderboard,
@@ -83,12 +87,6 @@ _init_sqlite()
 # ---------------------------------------------------------------------------
 _HAS_DB = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
 
-# user_id -> list of strategies
-_mem_strategies: dict[str, list] = {}
-# user_id -> longterm portfolio
-_mem_portfolios: dict[str, dict] = {}
-
-
 def _db_create_user(row: dict) -> dict:
     if _HAS_DB:
         result = create("users", row)
@@ -115,31 +113,28 @@ def _db_save_strategy(row: dict) -> dict:
     if _HAS_DB:
         result = create("sandbox_strategies", row)
         return result.data[0] if result.data else row
-    uid = row["user_id"]
     strat = {**row, "id": str(uuid.uuid4())}
-    _mem_strategies.setdefault(uid, []).append(strat)
-    return strat
+    return _sqlite_save_strategy(strat)
 
 
 def _db_get_strategies(user_id: str) -> list:
     if _HAS_DB:
         return read("sandbox_strategies", filters={"user_id": user_id})
-    return _mem_strategies.get(user_id, [])
+    return _sqlite_get_strategies(user_id)
 
 
 def _db_upsert_portfolio(row: dict) -> dict:
     if _HAS_DB:
         result = upsert("longterm_portfolio", row, on_conflict="user_id")
         return result.data[0] if result.data else row
-    _mem_portfolios[row["user_id"]] = row
-    return row
+    return _sqlite_upsert_portfolio(row)
 
 
 def _db_get_portfolio(user_id: str) -> dict | None:
     if _HAS_DB:
         rows = read("longterm_portfolio", filters={"user_id": user_id}, limit=1)
         return rows[0] if rows else None
-    return _mem_portfolios.get(user_id)
+    return _sqlite_get_portfolio(user_id)
 
 
 @app.middleware("http")
@@ -613,8 +608,10 @@ def get_longterm_history(current_user: dict = Depends(get_current_user)):
         scale = initial / 10000.0
         sim = simulate_gbm(portfolio["allocation"], years=20, inject_events=False)
         return {
-            "months": sim["months"],
-            "values": [round(v * scale, 2) for v in sim["values"]],
+            "history": {
+                "months": sim["months"],
+                "values": [round(v * scale, 2) for v in sim["values"]],
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
