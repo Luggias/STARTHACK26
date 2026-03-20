@@ -337,19 +337,42 @@ export default function SandboxPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerName, authenticated]);
 
-  /* Fetch IQ stats + leaderboard */
+  /* Fetch IQ stats + leaderboard + battle records */
+  const retryCount = useRef(0);
   useEffect(() => {
     if (!playerName || !authenticated) return;
     let active = true;
     const fetchAll = () => {
-      getGuestStats(playerName).then(r => { if (active) setLocalIq(r.iq); }).catch(() => {});
-      getGuestLeaderboard().then(r => { if (active) { setIqLeaderboard(r.iq_leaderboard); setHighscoreLeaderboard(r.highscore_leaderboard); } }).catch(() => {});
-      getGuestBattles(playerName).then(r => { if (active) setServerBattleRecords(r); }).catch(() => {});
+      getGuestStats(playerName).then(r => { if (active) setLocalIq(r?.iq ?? 0); }).catch(() => {});
+      getGuestLeaderboard().then(r => {
+        if (active) {
+          setIqLeaderboard(r?.iq_leaderboard ?? []);
+          setHighscoreLeaderboard(r?.highscore_leaderboard ?? []);
+        }
+        retryCount.current = 0;
+      }).catch(() => { retryCount.current++; });
+      getGuestBattles(playerName).then(r => { if (active) setServerBattleRecords(r ?? []); }).catch(() => {});
     };
     fetchAll();
-    const iv = setInterval(fetchAll, 10000);
+    // Retry faster (3s) on first few attempts, then settle to 10s
+    const iv = setInterval(() => {
+      fetchAll();
+    }, retryCount.current > 0 && retryCount.current < 5 ? 3000 : 10000);
     return () => { active = false; clearInterval(iv); };
   }, [playerName, authenticated]);
+
+  /* Also fetch leaderboard on mount for non-authenticated users to see global data */
+  useEffect(() => {
+    if (authenticated) return; // already handled above when authenticated
+    let active = true;
+    getGuestLeaderboard().then(r => {
+      if (active) {
+        setIqLeaderboard(r?.iq_leaderboard ?? []);
+        setHighscoreLeaderboard(r?.highscore_leaderboard ?? []);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [authenticated]);
 
   /* Load strategies from server on login; merge with local (server wins if non-empty) */
   const strategiesSynced = useRef(false);
@@ -998,7 +1021,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
                     <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#30d158]" : "text-white/70"}`}>{e.player_name}</span>
                   </div>
-                  <span className={`font-mono text-xs font-bold ${e.highscore >= 0 ? "text-[#30d158]" : "text-[#ff453a]"}`}>{e.highscore >= 0 ? "+" : ""}{e.highscore.toFixed(1)}%</span>
+                  <span className={`font-mono text-xs font-bold ${(e.highscore ?? 0) >= 0 ? "text-[#30d158]" : "text-[#ff453a]"}`}>{(e.highscore ?? 0) >= 0 ? "+" : ""}{(e.highscore ?? 0).toFixed(1)}%</span>
                 </div>
               ))}
             </div>
@@ -1035,8 +1058,8 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <span className="font-mono text-[10px] text-white/25 mx-1">vs</span>
                     <span className="font-mono text-[10px] text-white/45">{r.opponent_name}</span>
                   </div>
-                  <span className="font-mono text-xs font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
-                    {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
+                  <span className="font-mono text-xs font-bold tabular-nums" style={{ color: (r.player_return ?? 0) >= 0 ? "#30d158" : "#ff453a" }}>
+                    {(r.player_return ?? 0) >= 0 ? "+" : ""}{(r.player_return ?? 0).toFixed(1)}%
                   </span>
                 </div>
                 {r.strategy_name && (
@@ -1070,7 +1093,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                       {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
                     </td>
                     <td className="px-4 py-3.5 font-mono text-sm tabular-nums text-white/45">
-                      {r.opponent_return >= 0 ? "+" : ""}{r.opponent_return.toFixed(1)}%
+                      {(r.opponent_return ?? 0) >= 0 ? "+" : ""}{(r.opponent_return ?? 0).toFixed(1)}%
                     </td>
                     <td className="px-4 py-3.5">
                       <span className="rounded-full px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-widest"
