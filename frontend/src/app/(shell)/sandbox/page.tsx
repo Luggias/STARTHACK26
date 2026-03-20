@@ -256,7 +256,8 @@ export default function SandboxPage() {
     poll();
     const interval = setInterval(poll, 3000);
     return () => { active = false; clearInterval(interval); };
-  }, [playerName, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerName]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
