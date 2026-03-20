@@ -67,6 +67,14 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
 ```
 
+### Deployment
+
+**Back-End**
+> Railway
+
+**Front-End**
+> Vercel
+
 ---
 
 ## Environment Variables
