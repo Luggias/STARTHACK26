@@ -47,6 +47,9 @@ from db.sqlite_store import (
     update_user_stats as _sqlite_update_user_stats,
     save_battle as _sqlite_save_battle,
     get_battles as _sqlite_get_battles,
+    sqlite_create_user as _sqlite_create_reg_user,
+    sqlite_find_user_by_email as _sqlite_find_user_by_email,
+    sqlite_find_user_by_id as _sqlite_find_user_by_id,
     get_iq_leaderboard as _sqlite_get_iq_leaderboard,
     get_highscore_leaderboard as _sqlite_get_highscore_leaderboard,
     get_relative_return_leaderboard as _sqlite_get_relative_return_leaderboard,
@@ -80,8 +83,6 @@ _init_sqlite()
 # ---------------------------------------------------------------------------
 _HAS_DB = bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"))
 
-# email -> user dict
-_mem_users: dict[str, dict] = {}
 # user_id -> list of strategies
 _mem_strategies: dict[str, list] = {}
 # user_id -> longterm portfolio
@@ -93,26 +94,21 @@ def _db_create_user(row: dict) -> dict:
         result = create("users", row)
         return result.data[0] if result.data else row
     uid = str(uuid.uuid4())
-    user = {**row, "id": uid}
-    _mem_users[row["email"]] = user
-    return user
+    return _sqlite_create_reg_user({**row, "id": uid})
 
 
 def _db_find_user_by_email(email: str) -> dict | None:
     if _HAS_DB:
         rows = read("users", filters={"email": email}, limit=1)
         return rows[0] if rows else None
-    return _mem_users.get(email)
+    return _sqlite_find_user_by_email(email)
 
 
 def _db_find_user_by_id(uid: str) -> dict | None:
     if _HAS_DB:
         rows = read("users", filters={"id": uid}, limit=1)
         return rows[0] if rows else None
-    for u in _mem_users.values():
-        if u.get("id") == uid:
-            return u
-    return None
+    return _sqlite_find_user_by_id(uid)
 
 
 def _db_save_strategy(row: dict) -> dict:

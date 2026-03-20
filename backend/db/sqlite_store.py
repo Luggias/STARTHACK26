@@ -80,9 +80,60 @@ def init_db() -> None:
             c.execute(f"ALTER TABLE guest_battles ADD COLUMN {col} {dtype}")
     c.commit()
 
+    c.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            age INTEGER,
+            country TEXT,
+            invest_iq INTEGER DEFAULT 0,
+            risk_profile TEXT DEFAULT 'unknown',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+    """)
+    c.commit()
+
 
 # ---------------------------------------------------------------------------
-# Users
+# Registered users (SQLite fallback when Supabase is not configured)
+# ---------------------------------------------------------------------------
+
+def sqlite_create_user(row: dict) -> dict:
+    c = _conn()
+    c.execute(
+        """INSERT INTO users (id, username, full_name, email, password_hash, age, country, invest_iq, risk_profile)
+           VALUES (:id, :username, :full_name, :email, :password_hash, :age, :country, :invest_iq, :risk_profile)""",
+        {
+            "id": row["id"],
+            "username": row["username"],
+            "full_name": row["full_name"],
+            "email": row["email"],
+            "password_hash": row["password_hash"],
+            "age": row.get("age"),
+            "country": row.get("country"),
+            "invest_iq": row.get("invest_iq", 0),
+            "risk_profile": row.get("risk_profile", "unknown"),
+        },
+    )
+    c.commit()
+    return sqlite_find_user_by_email(row["email"])  # type: ignore[return-value]
+
+
+def sqlite_find_user_by_email(email: str) -> dict | None:
+    row = _conn().execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    return dict(row) if row else None
+
+
+def sqlite_find_user_by_id(uid: str) -> dict | None:
+    row = _conn().execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Guest users
 # ---------------------------------------------------------------------------
 
 def get_user(username: str) -> dict | None:
