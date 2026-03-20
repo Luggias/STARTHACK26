@@ -18,7 +18,7 @@ export default function BattleLobbyPage() {
   const [error, setError]           = useState("");
 
   const playerName = useGameStore((s) => s.playerName);
-  const playerId = user?.id ?? "guest-" + (playerName || "guest").toLowerCase().replace(/\s+/g, "-");
+  const playerId = user?.id ?? (playerName || "Guest");
   const username = user?.username ?? playerName ?? "Guest";
 
   async function handleFindMatch() {

@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline } from "@/lib/api";
+import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername } from "@/lib/api";
 import type { OnlinePlayer } from "@/lib/ws";
 
 /* ══════════════════════════════════════════════
@@ -212,7 +212,31 @@ export default function SandboxPage() {
 
   const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
   const [pvpOpponent, setPvpOpponent]   = useState<string | null>(null);
+  const [pvpOpponentAlloc, setPvpOpponentAlloc] = useState<Record<string, number> | null>(null);
+  const [pvpSeed, setPvpSeed]           = useState<number | null>(null);
   const [nameInput, setNameInput]       = useState("");
+  const [nameError, setNameError]       = useState("");
+  const [nameClaiming, setNameClaiming] = useState(false);
+
+  const handleClaimName = async () => {
+    const name = nameInput.trim();
+    if (!name) return;
+    setNameError("");
+    setNameClaiming(true);
+    try {
+      await claimUsername(name);
+      setPlayerName(name);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      if (msg.includes("409") || msg.toLowerCase().includes("taken")) {
+        setNameError("Username already taken. Try another one.");
+      } else {
+        setNameError("Could not claim username. Try again.");
+      }
+    } finally {
+      setNameClaiming(false);
+    }
+  };
 
   /* Matchmaking state */
   const router = useRouter();
@@ -226,12 +250,12 @@ export default function SandboxPage() {
   /* Presence / online players (REST polling) */
   const [worldOpen, setWorldOpen] = useState(false);
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
-  const [battleRequest, setBattleRequest] = useState<{ from_id: string; from_username: string } | null>(null);
+  const [battleRequest, setBattleRequest] = useState<{ from_id: string; from_username: string; from_allocation?: Record<string, number> | null } | null>(null);
   const [challengeSent, setChallengeSent] = useState<string | null>(null);
 
   useEffect(() => {
     if (!playerName) return;
-    const playerId = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+    const playerId = playerName;
     let active = true;
 
     const poll = async () => {
@@ -245,6 +269,8 @@ export default function SandboxPage() {
             const opName = onlinePlayers.find(p => p.id === challengeSent)?.username ?? "Opponent";
             const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
             setPvpOpponent(opName);
+            if (hb.opponent_allocation) setPvpOpponentAlloc(hb.opponent_allocation);
+            if (hb.seed) setPvpSeed(hb.seed);
             setBattleTarget(strat);
             setChallengeSent(null);
             return;
@@ -278,7 +304,7 @@ export default function SandboxPage() {
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     botTimerRef.current = setTimeout(() => { if (!matchCancelled.current) setShowBotOption(true); }, 5000);
 
-    const playerId = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+    const playerId = playerName;
     const start = Date.now();
     let roomId: string | null = null;
 
@@ -295,11 +321,13 @@ export default function SandboxPage() {
       try {
         if (!roomId) {
           // First call: try to join or create a room
-          const result = await quickmatch(playerId, playerName);
+          const result = await quickmatch(playerId, playerName, matchmaking?.allocation);
           if (matchCancelled.current) return;
 
           if (result.joined) {
             setPvpOpponent(result.opponent ?? "Opponent");
+            if (result.opponent_allocation) setPvpOpponentAlloc(result.opponent_allocation);
+            if (result.seed) setPvpSeed(result.seed);
             setBattleTarget(matchmaking);
             setMatchmaking(null);
             return;
@@ -314,6 +342,7 @@ export default function SandboxPage() {
           if (matchCancelled.current) return;
           if (data.player2) {
             setPvpOpponent(data.player2);
+            if (data.player2_allocation) setPvpOpponentAlloc(data.player2_allocation);
             setBattleTarget(matchmaking);
             setMatchmaking(null);
             return;
@@ -510,17 +539,19 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
               <p className="mb-1 font-mono text-[10px] md:text-xs uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
               <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
-              <p className="mb-8 text-xs md:text-sm text-white/40">Your name will appear on the leaderboard after each battle.</p>
+              <p className="mb-8 text-xs md:text-sm text-white/40">Choose a unique name — it will appear on the leaderboard.</p>
               <input
                 type="text" maxLength={20} placeholder="e.g. WallStreetWolf"
-                value={nameInput} onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && nameInput.trim() && setPlayerName(nameInput.trim())}
-                className="mb-4 w-full rounded-xl border border-[#00d4ff]/25 bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none focus:border-[#00d4ff]/60 transition-all" />
+                value={nameInput} onChange={e => { setNameInput(e.target.value); setNameError(""); }}
+                onKeyDown={e => e.key === "Enter" && nameInput.trim() && handleClaimName()}
+                className={`mb-2 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
+              {nameError && <p className="mb-2 font-mono text-xs text-[#ff453a]">{nameError}</p>}
+              {!nameError && <div className="mb-2" />}
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                disabled={!nameInput.trim()}
-                onClick={() => setPlayerName(nameInput.trim())}
+                disabled={!nameInput.trim() || nameClaiming}
+                onClick={handleClaimName}
                 className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
-                ENTER ARENA →
+                {nameClaiming ? "CLAIMING..." : "ENTER ARENA →"}
               </motion.button>
             </motion.div>
           </motion.div>
@@ -595,9 +626,13 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               <div className="flex gap-2">
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={async () => {
-                    const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
-                    try { await presenceAccept(pid, battleRequest.from_id); } catch {}
+                    const pid = playerName;
                     const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+                    try {
+                      const resp = await presenceAccept(pid, battleRequest.from_id, strat.allocation);
+                      if (resp.opponent_allocation) setPvpOpponentAlloc(resp.opponent_allocation);
+                      if (resp.seed) setPvpSeed(resp.seed);
+                    } catch {}
                     setPvpOpponent(battleRequest.from_username);
                     setBattleTarget(strat);
                     setBattleRequest(null);
@@ -607,7 +642,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 </motion.button>
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={() => {
-                    const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+                    const pid = playerName;
                     presenceDecline(pid, battleRequest.from_id).catch(() => {});
                     setBattleRequest(null);
                   }}
@@ -626,7 +661,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <BattleArena
             strategy={battleTarget}
             playerName={playerName}
-            onClose={() => { setBattleTarget(null); setPvpOpponent(null); }}
+            onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); }}
             onResult={(won, returnPct, cpuReturnPct) => {
               addBattleRecord({
                 playerName,
@@ -638,7 +673,9 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               });
             }}
             opponentName={pvpOpponent ?? undefined}
-            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); }}
+            opponentAllocation={pvpOpponentAlloc ?? undefined}
+            seed={pvpSeed ?? undefined}
+            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); }}
           />
         )}
       </AnimatePresence>
@@ -691,8 +728,9 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                           disabled={challengeSent === p.id}
                           onClick={() => {
-                            const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
-                            presenceChallenge(pid, p.id).catch(() => {});
+                            const pid = playerName;
+                            const alloc = strategies[0]?.allocation ?? { equities: 25, etfs: 25, bonds: 25, commodities: 25 };
+                            presenceChallenge(pid, p.id, alloc).catch(() => {});
                             setChallengeSent(p.id);
                           }}
                           className="rounded-md border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-3 py-1 font-mono text-[10px] md:text-xs font-bold uppercase text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20 disabled:opacity-40">

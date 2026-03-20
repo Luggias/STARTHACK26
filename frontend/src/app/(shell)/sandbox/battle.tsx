@@ -59,113 +59,6 @@ function stepPV(pv: number, alloc: Record<string, number>, randn: () => number, 
 }
 
 
-/* ── Chart with time axis + value axis ── */
-function BattleChart({ pH, cH }: { pH: number[]; cH: number[] }) {
-  if (pH.length < 2) return <div className="w-full" style={{ height: 112 }} />;
-
-  /* Layout constants */
-  const VW = 540; const VH = 96;
-  const ML = 50; const MR = 8; const MT = 6; const MB = 22;
-  const CW = VW - ML - MR; const CH = VH - MT - MB;
-
-  /* Value range */
-  const all = [...pH, ...cH, 10000];
-  const rawMin = Math.min(...all); const rawMax = Math.max(...all);
-  const vPad = (rawMax - rawMin) * 0.12 || 300;
-  const mn = rawMin - vPad; const mx = rawMax + vPad; const rng = mx - mn;
-  const n = pH.length;
-
-  /* Coordinate helpers */
-  const px = (i: number) => ML + (i / (n - 1)) * CW;
-  const py = (v: number) => MT + CH - ((v - mn) / rng) * CH;
-
-  const pLine = pH.map((v, i) => `${px(i)},${py(v)}`).join(" L ");
-  const cLine = cH.map((v, i) => `${px(i)},${py(v)}`).join(" L ");
-  const pLx = px(n - 1); const pLy = py(pH[n - 1]);
-  const cLx = px(cH.length - 1); const cLy = py(cH[cH.length - 1]);
-
-  const pArea = `M ${ML},${MT + CH} L ${pLine} L ${pLx},${MT + CH} Z`;
-  const cArea = `M ${ML},${MT + CH} L ${cLine} L ${cLx},${MT + CH} Z`;
-  const breakY = py(10000);
-
-  /* Y-axis: 4 nice labels */
-  const yStep = (mx - mn) / 3;
-  const yLabels = [0, 1, 2, 3].map(i => {
-    const v = mn + i * yStep;
-    const label = Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`;
-    return { y: py(v), label };
-  });
-
-  /* X-axis: years 0, 2, 4, 6, 8, 10 at fixed proportional positions */
-  const xLabels = [0, 2, 4, 6, 8, 10].map(yr => ({
-    x: ML + (yr / 10) * CW,
-    label: `Y${yr}`,
-  }));
-
-  return (
-    <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: "100%", height: "auto" }}>
-      <defs>
-        <linearGradient id="gradBull" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00d4ff" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#00d4ff" stopOpacity="0.02" />
-        </linearGradient>
-        <linearGradient id="gradBear" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ff453a" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#ff453a" stopOpacity="0.02" />
-        </linearGradient>
-        <clipPath id="chartClip">
-          <rect x={ML} y={MT} width={CW} height={CH} />
-        </clipPath>
-      </defs>
-
-      {/* Y-axis grid lines + labels */}
-      {yLabels.map(({ y, label }, i) => (
-        <g key={i}>
-          <line x1={ML} y1={y} x2={ML + CW} y2={y}
-            stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-          <text x={ML - 5} y={y + 3.5} textAnchor="end" fontSize="9"
-            fill="rgba(255,255,255,0.32)" fontFamily="monospace">{label}</text>
-        </g>
-      ))}
-
-      {/* Breakeven line at $10,000 — highlighted */}
-      <line x1={ML} y1={breakY} x2={ML + CW} y2={breakY}
-        stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeDasharray="7,4" />
-      <text x={ML - 5} y={breakY + 3.5} textAnchor="end" fontSize="9"
-        fill="rgba(255,255,255,0.5)" fontFamily="monospace">$10k</text>
-
-      {/* X-axis baseline */}
-      <line x1={ML} y1={MT + CH} x2={ML + CW} y2={MT + CH}
-        stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-
-      {/* X-axis year ticks + labels */}
-      {xLabels.map(({ x, label }) => (
-        <g key={label}>
-          <line x1={x} y1={MT + CH} x2={x} y2={MT + CH + 5}
-            stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-          <text x={x} y={MT + CH + 16} textAnchor="middle" fontSize="9"
-            fill="rgba(255,255,255,0.35)" fontFamily="monospace">{label}</text>
-        </g>
-      ))}
-
-      {/* Gradient fills — clipped */}
-      <g clipPath="url(#chartClip)">
-        <path d={pArea} fill="url(#gradBull)" />
-        <path d={cArea} fill="url(#gradBear)" />
-      </g>
-
-      {/* Lines — clipped */}
-      <g clipPath="url(#chartClip)">
-        <path d={`M ${pLine}`} fill="none" stroke="#00d4ff" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d={`M ${cLine}`} fill="none" stroke="#ff453a" strokeWidth="2.5" strokeLinejoin="round" />
-      </g>
-
-      {/* Live endpoint dots */}
-      <circle cx={pLx} cy={pLy} r="5" fill="#00d4ff" />
-      <circle cx={cLx} cy={cLy} r="5" fill="#ff453a" />
-    </svg>
-  );
-}
 
 /* ═══════════════════════════════
    MAIN BATTLE ARENA
@@ -178,11 +71,13 @@ export interface BattleArenaProps {
   /** PvP mode: opponent's name and allocation */
   opponentName?: string;
   opponentAllocation?: Record<string, number>;
+  /** Shared seed for deterministic PvP simulation */
+  seed?: number;
   /** Called when user wants to play again */
   onPlayAgain?: () => void;
 }
 
-export function BattleArena({ strategy, playerName, onClose, onResult, opponentName, opponentAllocation, onPlayAgain }: BattleArenaProps) {
+export function BattleArena({ strategy, playerName, onClose, onResult, opponentName, opponentAllocation, onPlayAgain, seed }: BattleArenaProps) {
 
   const isPvP = !!opponentName;
   const enemyName = opponentName ?? "A.I. FUND";
@@ -207,10 +102,11 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
   const [cHit, setCHit]         = useState(false);
 
   /* All mutable sim state in a single ref to avoid stale closures */
+  const baseSeed = seed ?? (Math.random() * 2 ** 32 | 0);
   const sim = useRef({
     month: 0, eventIdx: 0, pPV: 10000, cPV: 10000,
-    pRNG: makeLCG(Math.random() * 2 ** 32 | 0),
-    cRNG: makeLCG(Math.random() * 2 ** 32 | 0),
+    pRNG: makeLCG(baseSeed),
+    cRNG: makeLCG(baseSeed ^ 0x12345678),
     events: [] as { ev: BEv; atMonth: number }[],
     pendingShocks: null as Record<string, number> | null,
   });
@@ -311,9 +207,13 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
     const cReturn = ((cH[cH.length - 1] - 10000) / 10000) * 100;
     getAiInsight(
       strategy.allocation as unknown as Allocation, enemyAlloc as unknown as Allocation,
-      "battle_arena",
+      "2008_crisis",
       { p1_return: pReturn, p1_sharpe: 0, p2_return: cReturn, p2_sharpe: 0 },
-    ).then(setAiInsight).catch(() => setAiInsight("Great battle! Diversification and risk management are key to long-term success."));
+    ).then((text) => { if (text) setAiInsight(text); })
+     .catch((err) => {
+       console.error("[battle] AI insight error:", err);
+       setAiInsight("Great battle! Diversification and risk management are key to long-term success.");
+     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -569,8 +469,16 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
               <span className="font-mono text-[9px] md:text-xs text-white/35">$10,000 START</span>
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] px-3 py-2 md:px-4 md:py-3">
-            <BattleChart pH={pH} cH={cH} />
+          <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] px-1 py-1">
+            <PerformanceChart
+              months={pH.map((_, i) => `M${i}`)}
+              values={pH}
+              values2={cH}
+              animate={false}
+              color="#00d4ff"
+              color2="#ff453a"
+              height={140}
+            />
           </div>
         </div>
       </div>

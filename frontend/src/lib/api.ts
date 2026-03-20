@@ -228,10 +228,11 @@ export async function findOpenBattle(): Promise<{
 export async function quickmatch(
   playerId: string,
   username: string,
-): Promise<{ room_id: string; status: string; joined: boolean; opponent: string | null }> {
+  allocation?: Record<string, number>,
+): Promise<{ room_id: string; status: string; joined: boolean; opponent: string | null; opponent_allocation: Record<string, number> | null; seed: number | null }> {
   return fetchJson("/battles/quickmatch", {
     method: "POST",
-    body: JSON.stringify({ player_id: playerId, username }),
+    body: JSON.stringify({ player_id: playerId, username, allocation }),
   });
 }
 
@@ -257,6 +258,8 @@ export async function getBattle(roomId: string) {
     status: string;
     player1: string | null;
     player2: string | null;
+    player1_allocation: Record<string, number> | null;
+    player2_allocation: Record<string, number> | null;
     results: BattleResult | null;
   }>(`/battles/${roomId}`);
 }
@@ -286,13 +289,31 @@ export async function getLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[
 }
 
 // ---------------------------------------------------------------------------
+// Username
+// ---------------------------------------------------------------------------
+
+export async function claimUsername(username: string): Promise<{ ok: boolean; username: string }> {
+  return fetchJson("/username/claim", {
+    method: "POST",
+    body: JSON.stringify({ username }),
+  });
+}
+
+export async function releaseUsername(username: string): Promise<void> {
+  await fetchJson("/username/release", {
+    method: "POST",
+    body: JSON.stringify({ username }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Presence
 // ---------------------------------------------------------------------------
 
 export async function presenceHeartbeat(
   playerId: string,
   username: string,
-): Promise<{ ok?: boolean; go_to_battle?: string }> {
+): Promise<{ ok?: boolean; go_to_battle?: string; opponent_allocation?: Record<string, number> | null; seed?: number | null }> {
   return fetchJson("/presence/heartbeat", {
     method: "POST",
     body: JSON.stringify({ player_id: playerId, username }),
@@ -305,26 +326,27 @@ export async function presenceOnline(): Promise<{
   return fetchJson("/presence/online");
 }
 
-export async function presenceChallenge(fromId: string, targetId: string): Promise<void> {
+export async function presenceChallenge(fromId: string, targetId: string, allocation?: Record<string, number>): Promise<void> {
   await fetchJson("/presence/challenge", {
     method: "POST",
-    body: JSON.stringify({ from_id: fromId, target_id: targetId }),
+    body: JSON.stringify({ from_id: fromId, target_id: targetId, allocation }),
   });
 }
 
 export async function presenceGetChallenges(
   playerId: string,
-): Promise<{ challenge: { from_id: string; from_username: string } | null }> {
+): Promise<{ challenge: { from_id: string; from_username: string; from_allocation?: Record<string, number> | null } | null }> {
   return fetchJson(`/presence/challenges/${playerId}`);
 }
 
 export async function presenceAccept(
   playerId: string,
   fromId: string,
-): Promise<{ room_id: string }> {
+  allocation?: Record<string, number>,
+): Promise<{ room_id: string; opponent_allocation?: Record<string, number> | null; seed?: number | null }> {
   return fetchJson("/presence/accept", {
     method: "POST",
-    body: JSON.stringify({ player_id: playerId, from_id: fromId }),
+    body: JSON.stringify({ player_id: playerId, from_id: fromId, allocation }),
   });
 }
 

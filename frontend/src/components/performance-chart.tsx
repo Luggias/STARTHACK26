@@ -16,6 +16,8 @@ interface PerformanceChartProps {
   /** Label for the line(s) */
   label?: string;
   label2?: string;
+  /** Chart height in pixels (default 300) */
+  height?: number;
 }
 
 export default function PerformanceChart({
@@ -25,6 +27,7 @@ export default function PerformanceChart({
   color = "#3B82F6",
   values2,
   color2 = "#EF4444",
+  height = 300,
 }: PerformanceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -38,7 +41,7 @@ export default function PerformanceChart({
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
-      height: 300,
+      height,
       layout: {
         background: { color: "transparent" },
         textColor: "#94A3B8",

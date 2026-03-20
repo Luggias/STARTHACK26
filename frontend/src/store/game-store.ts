@@ -119,6 +119,17 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "cmiyc-game-store",
+      version: 2,
+      migrate: () => ({
+        // v2: wipe all old data — force fresh login with unique username
+        user: null,
+        token: null,
+        playerName: "",
+        unlockedAssets: ["stocks"],
+        strategies: [],
+        battleRecords: [],
+        longtermPortfolio: null,
+      }),
       partialize: (state) => ({
         user: state.user,
         token: state.token,

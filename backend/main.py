@@ -609,34 +609,47 @@ def get_longterm_history(current_user: dict = Depends(get_current_user)):
 class BattleCreate(BaseModel):
     player_id: str
     username: str
+    allocation: Optional[dict] = None
 
 
 @app.post("/battles")
 def create_battle(req: BattleCreate):
     room = create_room(req.player_id, req.username)
+    if req.allocation:
+        room.player1.portfolio = req.allocation
     return {"room_id": room.room_id, "status": room.status.value}
 
 
 @app.post("/battles/quickmatch")
 def quickmatch(req: BattleCreate):
     """Atomically join an open room or create a new one."""
+    import random as _rnd
     room = find_open_room()
     if room and room.player1 and room.player1.player_id != req.player_id:
         # Join existing room as player2
         room.player2 = Player(player_id=req.player_id, username=req.username)
+        if req.allocation:
+            room.player2.portfolio = req.allocation
+        seed = _rnd.randint(0, 2**31)
         return {
             "room_id": room.room_id,
             "status": room.status.value,
             "joined": True,
             "opponent": room.player1.username,
+            "opponent_allocation": room.player1.portfolio,
+            "seed": seed,
         }
     # No open room — create a new one
     new_room = create_room(req.player_id, req.username)
+    if req.allocation:
+        new_room.player1.portfolio = req.allocation
     return {
         "room_id": new_room.room_id,
         "status": new_room.status.value,
         "joined": False,
         "opponent": None,
+        "opponent_allocation": None,
+        "seed": None,
     }
 
 
@@ -685,6 +698,8 @@ def get_battle(room_id: str):
         "status": room.status.value,
         "player1": room.player1.username if room.player1 else None,
         "player2": room.player2.username if room.player2 else None,
+        "player1_allocation": room.player1.portfolio if room.player1 else None,
+        "player2_allocation": room.player2.portfolio if room.player2 else None,
         "results": room.results,
     }
 
@@ -714,6 +729,35 @@ def get_player_battle_history(player_name: str, limit: int = 20):
         return {"results": rows[:limit]}
     except Exception as e:
         return {"results": [], "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Username registry — unique usernames, in-memory for hackathon
+# ---------------------------------------------------------------------------
+
+_taken_usernames: set[str] = set()  # lowercased usernames
+
+
+class ClaimUsernameReq(BaseModel):
+    username: str
+
+
+@app.post("/username/claim")
+def claim_username(req: ClaimUsernameReq):
+    name = req.username.strip()
+    if not name or len(name) > 20:
+        raise HTTPException(400, "Username must be 1-20 characters")
+    lower = name.lower()
+    if lower in _taken_usernames:
+        raise HTTPException(409, "Username already taken")
+    _taken_usernames.add(lower)
+    return {"ok": True, "username": name}
+
+
+@app.post("/username/release")
+def release_username(req: ClaimUsernameReq):
+    _taken_usernames.discard(req.username.strip().lower())
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -753,10 +797,12 @@ def presence_heartbeat(req: HeartbeatReq):
     # Check for incoming challenge
     challenge = _pending_challenges.get(req.player_id)
     if challenge and challenge.get("room_id"):
-        # Accepted — return room_id and clear
+        # Accepted — return room_id, opponent allocation, and seed, then clear
         room_id = challenge["room_id"]
+        opp_alloc = challenge.get("opponent_allocation")
+        seed = challenge.get("seed")
         del _pending_challenges[req.player_id]
-        return {"go_to_battle": room_id}
+        return {"go_to_battle": room_id, "opponent_allocation": opp_alloc, "seed": seed}
     return {"ok": True}
 
 
@@ -774,6 +820,7 @@ def presence_online():
 class ChallengeReq(BaseModel):
     from_id: str
     target_id: str
+    allocation: Optional[dict] = None
 
 
 @app.post("/presence/challenge")
@@ -787,6 +834,7 @@ def presence_challenge(req: ChallengeReq):
     _pending_challenges[req.target_id] = {
         "from_id": req.from_id,
         "from_username": sender["username"],
+        "from_allocation": req.allocation,
         "room_id": None,
         "ts": time.time(),
     }
@@ -802,16 +850,18 @@ def presence_get_challenges(player_id: str):
     if time.time() - challenge["ts"] > 30:
         del _pending_challenges[player_id]
         return {"challenge": None}
-    return {"challenge": {"from_id": challenge["from_id"], "from_username": challenge["from_username"]}}
+    return {"challenge": {"from_id": challenge["from_id"], "from_username": challenge["from_username"], "from_allocation": challenge.get("from_allocation")}}
 
 
 class AcceptReq(BaseModel):
     player_id: str
     from_id: str
+    allocation: Optional[dict] = None
 
 
 @app.post("/presence/accept")
 def presence_accept(req: AcceptReq):
+    import random as _rnd
     challenge = _pending_challenges.get(req.player_id)
     if not challenge or challenge["from_id"] != req.from_id:
         raise HTTPException(404, "No pending challenge")
@@ -821,18 +871,33 @@ def presence_accept(req: AcceptReq):
         raise HTTPException(404, "Player offline")
     # Create battle room
     room = create_room(req.from_id, challenger["username"])
+    room.player1.portfolio = challenge.get("from_allocation")
     room.player2 = Player(player_id=req.player_id, username=accepter["username"])
+    room.player2.portfolio = req.allocation
     challenger["in_battle"] = True
     accepter["in_battle"] = True
-    # Store room_id in both directions so both players discover it via heartbeat
-    _pending_challenges[req.player_id] = {**challenge, "room_id": room.room_id}
+    seed = _rnd.randint(0, 2**31)
+    # Store room_id + allocations in both directions so both players discover it via heartbeat
+    _pending_challenges[req.player_id] = {
+        **challenge,
+        "room_id": room.room_id,
+        "opponent_allocation": challenge.get("from_allocation"),
+        "seed": seed,
+    }
     _pending_challenges[req.from_id] = {
         "from_id": req.player_id,
         "from_username": accepter["username"],
+        "from_allocation": req.allocation,
         "room_id": room.room_id,
+        "opponent_allocation": req.allocation,
+        "seed": seed,
         "ts": time.time(),
     }
-    return {"room_id": room.room_id}
+    return {
+        "room_id": room.room_id,
+        "opponent_allocation": challenge.get("from_allocation"),
+        "seed": seed,
+    }
 
 
 class DeclineReq(BaseModel):

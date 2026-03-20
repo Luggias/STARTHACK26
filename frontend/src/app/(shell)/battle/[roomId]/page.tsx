@@ -29,7 +29,7 @@ export default function BattleRoomPage() {
 
   const playerId = useMemo(() => {
     if (user) return user.id;
-    if (playerName) return "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+    if (playerName) return playerName;
     return null;
   }, [user, playerName]);
 
