@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Strategy, Allocation } from "@/lib/types";
 import { BattleStage } from "./battle-stage";
-import { getAiInsight } from "@/lib/api";
+import { getAiInsight, presenceRematch, presenceCheckRematch } from "@/lib/api";
 import PerformanceChart from "@/components/performance-chart";
 import AiInsight from "@/components/ai-insight";
 
@@ -93,6 +93,8 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
   const [reactTimer, setReactTimer] = useState(6);
   const [won, setWon]               = useState(false);
   const [aiInsight, setAiInsight]   = useState("");
+  const [rematchSent, setRematchSent]         = useState(false);
+  const [opponentWantsRematch, setOpponentWantsRematch] = useState(false);
 
   /* Combat animation state */
   const [pAttack, setPAttack]   = useState(false);
@@ -111,17 +113,19 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
     pendingShocks: null as Record<string, number> | null,
   });
 
-  /* Pick events once on mount */
+  /* Pick events once on mount — use seeded RNG so both PvP players see identical events */
   useEffect(() => {
+    const evRNG = makeLCG(baseSeed ^ 0xBA771E);
     const neg  = EVENTS.filter(e => e.type === "negative");
     const all  = [...EVENTS];
-    const ev1  = neg[Math.floor(Math.random() * neg.length)];
+    const ev1  = neg[Math.floor(evRNG.rand() * neg.length)];
     const rest = all.filter(e => e.key !== ev1.key);
-    const ev2  = rest[Math.floor(Math.random() * rest.length)];
+    const ev2  = rest[Math.floor(evRNG.rand() * rest.length)];
     sim.current.events = [
-      { ev: ev1, atMonth: 22 + Math.floor(Math.random() * 20) },
-      { ev: ev2, atMonth: 68 + Math.floor(Math.random() * 22) },
+      { ev: ev1, atMonth: 22 + Math.floor(evRNG.rand() * 20) },
+      { ev: ev2, atMonth: 68 + Math.floor(evRNG.rand() * 22) },
     ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* Countdown */
@@ -215,6 +219,21 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
        console.error("[battle] AI insight error:", err);
        setAiInsight("Great battle! Diversification and risk management are key to long-term success.");
      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  /* Poll for opponent rematch request when battle is done (PvP only) */
+  useEffect(() => {
+    if (phase !== "done" || !isPvP) return;
+    let active = true;
+    const poll = () => {
+      presenceCheckRematch(playerName).then(r => {
+        if (active && r.from_id === enemyName) setOpponentWantsRematch(true);
+      }).catch(() => {});
+    };
+    poll();
+    const iv = setInterval(poll, 2000);
+    return () => { active = false; clearInterval(iv); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -378,12 +397,34 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
 
               {/* Buttons */}
               <div className="mt-6 flex gap-3">
-                {onPlayAgain && (
+                {onPlayAgain && isPvP ? (
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      if (rematchSent && opponentWantsRematch) {
+                        // Both want rematch — go!
+                        onPlayAgain();
+                        return;
+                      }
+                      presenceRematch(playerName, enemyName).then(r => {
+                        setRematchSent(true);
+                        if (r.mutual) onPlayAgain();
+                      }).catch(() => {});
+                    }}
+                    className={`rounded-xl border px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest transition-all ${
+                      opponentWantsRematch
+                        ? "border-[#30d158]/60 bg-[#30d158]/20 text-[#30d158] animate-pulse"
+                        : rematchSent
+                          ? "border-[#ff9f0a]/20 bg-[#ff9f0a]/5 text-[#ff9f0a]/50"
+                          : "border-[#ff9f0a]/40 bg-[#ff9f0a]/10 text-[#ff9f0a] hover:bg-[#ff9f0a]/20"
+                    }`}>
+                    {opponentWantsRematch ? "ACCEPT REMATCH" : rematchSent ? "WAITING FOR OPPONENT..." : "PLAY AGAIN"}
+                  </motion.button>
+                ) : onPlayAgain ? (
                   <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onPlayAgain}
                     className="rounded-xl border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20">
                     PLAY AGAIN
                   </motion.button>
-                )}
+                ) : null}
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
                   className="rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
                   RETURN TO SANDBOX

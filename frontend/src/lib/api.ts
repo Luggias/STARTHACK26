@@ -365,6 +365,17 @@ export async function presenceBattleEnd(playerId: string): Promise<void> {
   });
 }
 
+export async function presenceRematch(playerId: string, opponentId: string): Promise<{ mutual: boolean }> {
+  return fetchJson("/presence/rematch", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, opponent_id: opponentId }),
+  });
+}
+
+export async function presenceCheckRematch(playerId: string): Promise<{ from_id: string | null }> {
+  return fetchJson(`/presence/rematch/${encodeURIComponent(playerId)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Guest stats & leaderboards
 // ---------------------------------------------------------------------------
@@ -413,6 +424,18 @@ export interface GuestBattleRecord {
   won: number;
   is_pvp: number;
   played_at: string;
+}
+
+export async function syncGuestStrategies(playerName: string, strategies: unknown[]): Promise<void> {
+  await fetchJson("/guest/strategies/sync", {
+    method: "POST",
+    body: JSON.stringify({ player_name: playerName, strategies }),
+  });
+}
+
+export async function getGuestStrategies(playerName: string): Promise<unknown[]> {
+  const data = await fetchJson<{ strategies: unknown[] }>(`/guest/strategies/${encodeURIComponent(playerName)}`);
+  return data.strategies;
 }
 
 export async function getGuestBattles(playerName: string, limit = 50): Promise<GuestBattleRecord[]> {

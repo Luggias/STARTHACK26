@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats, getGuestBattles } from "@/lib/api";
+import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats, getGuestBattles, syncGuestStrategies, getGuestStrategies } from "@/lib/api";
 import type { GuestBattleRecord } from "@/lib/api";
 import type { OnlinePlayer } from "@/lib/ws";
 
@@ -257,7 +257,7 @@ export default function SandboxPage() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed";
       if (msg.includes("401") || msg.toLowerCase().includes("wrong password")) {
-        setNameError("Wrong password.");
+        setNameError(isReturningUser ? "Wrong password." : "Username already taken. Choose a different name or enter the correct password.");
       } else if (msg.includes("400")) {
         setNameError("Username/password invalid. Check requirements.");
       } else {
@@ -349,6 +349,34 @@ export default function SandboxPage() {
     const iv = setInterval(fetchAll, 10000);
     return () => { active = false; clearInterval(iv); };
   }, [playerName, authenticated]);
+
+  /* Load strategies from server on login; merge with local (server wins if non-empty) */
+  const strategiesSynced = useRef(false);
+  useEffect(() => {
+    if (!playerName || !authenticated || strategiesSynced.current) return;
+    strategiesSynced.current = true;
+    getGuestStrategies(playerName).then((remote) => {
+      const store = useGameStore.getState();
+      if (remote.length > 0) {
+        // Server has strategies — use them (overwrite local)
+        store.strategies.splice(0);
+        useGameStore.setState({ strategies: remote as Strategy[] });
+      } else if (store.strategies.length > 0) {
+        // Local has strategies but server is empty — push to server
+        syncGuestStrategies(playerName, store.strategies).catch(() => {});
+      }
+    }).catch(() => {});
+  }, [playerName, authenticated]);
+
+  /* Sync strategies to server whenever they change */
+  const prevStrategiesRef = useRef<string>("");
+  useEffect(() => {
+    if (!playerName || !authenticated || !strategiesSynced.current) return;
+    const key = JSON.stringify(strategies);
+    if (key === prevStrategiesRef.current) return;
+    prevStrategiesRef.current = key;
+    syncGuestStrategies(playerName, strategies).catch(() => {});
+  }, [playerName, authenticated, strategies]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
@@ -931,7 +959,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* IQ Leaderboard */}
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-[#ff9f0a]">IQ LEADERBOARD</p>
+              <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a]">IQ LEADERBOARD</p>
               {iqLeaderboard.length === 0 ? (
                 <p className="font-mono text-xs text-white/25">No data yet</p>
               ) : iqLeaderboard.map((e, i) => (
@@ -946,7 +974,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             </div>
             {/* Highscore Leaderboard */}
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-[#30d158]">HIGHSCORE</p>
+              <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158]">BEST RETURN</p>
               {highscoreLeaderboard.length === 0 ? (
                 <p className="font-mono text-xs text-white/25">No data yet</p>
               ) : highscoreLeaderboard.map((e, i) => (
@@ -975,7 +1003,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.05]">
-                  {["#", "PLAYER", "STRATEGY", "RETURN", "OPPONENT", "OPP. RETURN", "RESULT", "DATE"].map(h => (
+                  {["#", "MATCHUP", "STRATEGY", "RETURN", "OPP. RETURN", "RESULT", "DATE"].map(h => (
                     <th key={h} className="px-4 py-2.5 md:py-3 text-left font-mono text-[9px] md:text-xs uppercase tracking-widest text-white/35">{h}</th>
                   ))}
                 </tr>
@@ -984,12 +1012,15 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 {serverBattleRecords.map((r, i) => (
                   <tr key={r.id} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
                     <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/30">{i + 1}</td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold text-white">{r.player_name}</td>
+                    <td className="px-4 py-3 md:py-3.5">
+                      <span className="font-mono text-xs md:text-sm font-bold text-white">{r.player_name}</span>
+                      <span className="font-mono text-[10px] md:text-xs text-white/30 mx-1.5">vs</span>
+                      <span className="font-mono text-[10px] md:text-xs text-white/55">{r.opponent_name}</span>
+                    </td>
                     <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.strategy_name}</td>
                     <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
                       {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.opponent_name}</td>
                     <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm tabular-nums text-white/45">
                       {r.opponent_return >= 0 ? "+" : ""}{r.opponent_return.toFixed(1)}%
                     </td>

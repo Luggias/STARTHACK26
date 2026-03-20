@@ -49,6 +49,8 @@ from db.sqlite_store import (
     get_battles as _sqlite_get_battles,
     get_iq_leaderboard as _sqlite_get_iq_leaderboard,
     get_highscore_leaderboard as _sqlite_get_highscore_leaderboard,
+    save_strategies as _sqlite_save_strategies,
+    get_strategies as _sqlite_get_strategies,
 )
 
 # Warn about missing env vars but don't crash — DB endpoints will fail gracefully
@@ -965,6 +967,36 @@ def presence_battle_end(req: BattleEndReq):
     return {"ok": True}
 
 
+# {player_id: target_player_id} — signals "I want a rematch with this person"
+_rematch_requests: dict[str, str] = {}
+
+
+class RematchReq(BaseModel):
+    player_id: str
+    opponent_id: str
+
+
+@app.post("/presence/rematch")
+def presence_rematch(req: RematchReq):
+    _rematch_requests[req.player_id] = req.opponent_id
+    # Check if opponent also requested rematch with us → mutual = go!
+    if _rematch_requests.get(req.opponent_id) == req.player_id:
+        # Both want rematch — clear requests
+        _rematch_requests.pop(req.player_id, None)
+        _rematch_requests.pop(req.opponent_id, None)
+        return {"mutual": True}
+    return {"mutual": False}
+
+
+@app.get("/presence/rematch/{player_id}")
+def presence_check_rematch(player_id: str):
+    """Check if anyone requested a rematch with this player."""
+    for pid, target in _rematch_requests.items():
+        if target == player_id:
+            return {"from_id": pid}
+    return {"from_id": None}
+
+
 # ---------------------------------------------------------------------------
 # Guest stats & leaderboards (in-memory, no auth)
 # ---------------------------------------------------------------------------
@@ -1017,6 +1049,22 @@ def guest_stats(player_name: str):
     user = _sqlite_get_user(player_name)
     iq = user["iq"] if user else 0
     return {"player_name": player_name, "iq": iq}
+
+
+class SyncStrategiesReq(BaseModel):
+    player_name: str
+    strategies: list[dict]
+
+
+@app.post("/guest/strategies/sync")
+def guest_sync_strategies(req: SyncStrategiesReq):
+    _sqlite_save_strategies(req.player_name, req.strategies)
+    return {"ok": True, "count": len(req.strategies)}
+
+
+@app.get("/guest/strategies/{player_name}")
+def guest_get_strategies(player_name: str):
+    return {"strategies": _sqlite_get_strategies(player_name)}
 
 
 @app.get("/guest/battles")

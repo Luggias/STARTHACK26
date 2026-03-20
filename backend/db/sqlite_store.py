@@ -1,8 +1,9 @@
-"""SQLite persistent data layer for guest users and battle records.
+"""SQLite persistent data layer for guest users, battle records, and strategies.
 
 DB file: backend/data/game.db (auto-created on first use).
 """
 
+import json
 import sqlite3
 import pathlib
 import threading
@@ -46,6 +47,17 @@ def init_db() -> None:
             won INTEGER,
             is_pvp INTEGER,
             played_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS guest_strategies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            name TEXT NOT NULL,
+            allocation TEXT NOT NULL,
+            selected_assets TEXT,
+            scenario_key TEXT,
+            result TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
         );
     """)
     c.commit()
@@ -138,3 +150,43 @@ def get_highscore_leaderboard(limit: int = 5) -> list[dict]:
         (limit,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Strategies
+# ---------------------------------------------------------------------------
+
+def save_strategies(username: str, strategies: list[dict]) -> None:
+    """Replace all strategies for a user (full sync from client)."""
+    c = _conn()
+    c.execute("DELETE FROM guest_strategies WHERE username = ?", (username.lower(),))
+    for s in strategies:
+        c.execute(
+            """INSERT INTO guest_strategies (username, name, allocation, selected_assets, scenario_key, result)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                username.lower(),
+                s.get("name", ""),
+                json.dumps(s.get("allocation", {})),
+                json.dumps(s.get("selectedAssets")) if s.get("selectedAssets") else None,
+                s.get("scenario_key"),
+                json.dumps(s.get("result")) if s.get("result") else None,
+            ),
+        )
+    c.commit()
+
+
+def get_strategies(username: str) -> list[dict]:
+    rows = _conn().execute(
+        "SELECT * FROM guest_strategies WHERE username = ? ORDER BY id ASC",
+        (username.lower(),),
+    ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["allocation"] = json.loads(d["allocation"]) if d["allocation"] else {}
+        d["selectedAssets"] = json.loads(d["selected_assets"]) if d.get("selected_assets") else None
+        d["result"] = json.loads(d["result"]) if d.get("result") else None
+        d.pop("selected_assets", None)
+        result.append(d)
+    return result
