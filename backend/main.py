@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile, File, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import anthropic
+from openai import OpenAI
 import time
 import uuid
 
@@ -54,7 +54,7 @@ from db.sqlite_store import (
 )
 
 # Warn about missing env vars but don't crash — DB endpoints will fail gracefully
-for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
+for key in ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
     if not os.getenv(key):
         import warnings
         warnings.warn(f"Missing env var: {key} — related features will be unavailable")
@@ -69,7 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ai_client = anthropic.Anthropic() if os.getenv("ANTHROPIC_API_KEY") else None
+ai_client = OpenAI() if os.getenv("OPENAI_API_KEY") else None
 
 # Initialise SQLite persistent store (creates tables on first run)
 _init_sqlite()
@@ -267,14 +267,16 @@ class PromptRequest(BaseModel):
 @app.post("/ai/chat")
 def chat(req: PromptRequest):
     if not ai_client:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
-    response = ai_client.messages.create(
-        model="claude-sonnet-4-6",
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+    response = ai_client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=1024,
-        system=req.system,
-        messages=[{"role": "user", "content": req.message}],
+        messages=[
+            {"role": "system", "content": req.system},
+            {"role": "user", "content": req.message},
+        ],
     )
-    return {"reply": response.content[0].text}
+    return {"reply": response.choices[0].message.content}
 
 
 class InsightRequest(BaseModel):
@@ -316,13 +318,15 @@ def get_ai_insight(req: InsightRequest):
         return {"insight": f"Great game! The key lesson here: {lesson}"}
 
     try:
-        response = ai_client.messages.create(
-            model="claude-sonnet-4-6",
+        response = ai_client.chat.completions.create(
+            model="gpt-4o-mini",
             max_tokens=300,
-            system=system_prompt,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
         )
-        return {"insight": response.content[0].text}
+        return {"insight": response.choices[0].message.content}
     except Exception:
         return {"insight": f"Great game! The key lesson here: {lesson}"}
 
@@ -371,14 +375,16 @@ def ai_coach(req: CoachRequest, current_user: dict = Depends(get_current_user)):
         }
 
     try:
-        response = ai_client.messages.create(
-            model="claude-sonnet-4-6",
+        response = ai_client.chat.completions.create(
+            model="gpt-4o-mini",
             max_tokens=500,
-            system="You are a financial personality assessor. Always respond with valid JSON only.",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": "You are a financial personality assessor. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
         )
         import json
-        text = response.content[0].text
+        text = response.choices[0].message.content
         # Extract JSON if wrapped in markdown
         if "```" in text:
             text = text.split("```")[1]
