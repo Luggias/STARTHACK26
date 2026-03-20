@@ -1020,7 +1020,7 @@ def guest_report_result(req: ReportResultReq):
     iq = user["iq"]
     best_return = user["best_return"]
     if req.is_pvp:
-        iq = max(0, iq + (50 if req.won else 25))
+        iq = max(0, iq + (10 if req.won else 5))
     if req.return_pct > best_return:
         best_return = req.return_pct
     _sqlite_update_user_stats(req.player_name, iq, best_return)
