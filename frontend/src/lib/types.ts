@@ -160,4 +160,5 @@ export interface BattleRecord {
   cpuReturnPct: number;
   won: boolean;
   date: string;
+  opponentName?: string;
 }

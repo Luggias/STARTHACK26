@@ -292,10 +292,10 @@ export async function getLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[
 // Username
 // ---------------------------------------------------------------------------
 
-export async function claimUsername(username: string): Promise<{ ok: boolean; username: string }> {
+export async function claimUsername(username: string, password: string): Promise<{ ok: boolean; username: string }> {
   return fetchJson("/username/claim", {
     method: "POST",
-    body: JSON.stringify({ username }),
+    body: JSON.stringify({ username, password }),
   });
 }
 
@@ -313,7 +313,7 @@ export async function releaseUsername(username: string): Promise<void> {
 export async function presenceHeartbeat(
   playerId: string,
   username: string,
-): Promise<{ ok?: boolean; go_to_battle?: string; opponent_allocation?: Record<string, number> | null; seed?: number | null }> {
+): Promise<{ ok?: boolean; go_to_battle?: string; opponent_allocation?: Record<string, number> | null; seed?: number | null; opponent_name?: string }> {
   return fetchJson("/presence/heartbeat", {
     method: "POST",
     body: JSON.stringify({ player_id: playerId, username }),

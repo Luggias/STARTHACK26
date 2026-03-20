@@ -744,11 +744,13 @@ def get_player_battle_history(player_name: str, limit: int = 20):
 # Username registry — unique usernames, in-memory for hackathon
 # ---------------------------------------------------------------------------
 
-_taken_usernames: set[str] = set()  # lowercased usernames
+# lowercased username -> {"password_hash": str, "display_name": str}
+_taken_usernames: dict[str, dict] = {}
 
 
 class ClaimUsernameReq(BaseModel):
     username: str
+    password: str = ""
 
 
 @app.post("/username/claim")
@@ -756,16 +758,26 @@ def claim_username(req: ClaimUsernameReq):
     name = req.username.strip()
     if not name or len(name) > 20:
         raise HTTPException(400, "Username must be 1-20 characters")
+    if not req.password or len(req.password) < 3:
+        raise HTTPException(400, "Password must be at least 3 characters")
     lower = name.lower()
-    if lower in _taken_usernames:
-        raise HTTPException(409, "Username already taken")
-    _taken_usernames.add(lower)
+    existing = _taken_usernames.get(lower)
+    if existing:
+        # Username exists — verify password (login)
+        if not verify_password(req.password, existing["password_hash"]):
+            raise HTTPException(401, "Wrong password")
+        return {"ok": True, "username": existing["display_name"]}
+    # New username — register
+    _taken_usernames[lower] = {
+        "password_hash": hash_password(req.password),
+        "display_name": name,
+    }
     return {"ok": True, "username": name}
 
 
 @app.post("/username/release")
 def release_username(req: ClaimUsernameReq):
-    _taken_usernames.discard(req.username.strip().lower())
+    _taken_usernames.pop(req.username.strip().lower(), None)
     return {"ok": True}
 
 
@@ -806,16 +818,17 @@ def presence_heartbeat(req: HeartbeatReq):
     # Check for incoming challenge
     challenge = _pending_challenges.get(req.player_id)
     if challenge and challenge.get("room_id"):
-        # Accepted — return room_id, opponent allocation, and seed, then clear
+        # Accepted — return room_id, opponent allocation, seed, and opponent name, then clear
         room_id = challenge["room_id"]
         opp_alloc = challenge.get("opponent_allocation")
         seed = challenge.get("seed")
+        opp_name = challenge.get("from_username", "Opponent")
         del _pending_challenges[req.player_id]
         # Mark as in_battle
         player = _online_players.get(req.player_id)
         if player:
             player["in_battle"] = True
-        return {"go_to_battle": room_id, "opponent_allocation": opp_alloc, "seed": seed}
+        return {"go_to_battle": room_id, "opponent_allocation": opp_alloc, "seed": seed, "opponent_name": opp_name}
     return {"ok": True}
 
 

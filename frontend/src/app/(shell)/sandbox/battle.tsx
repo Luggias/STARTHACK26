@@ -172,6 +172,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
   useEffect(() => {
     tickRef.current = () => {
       const s = sim.current;
+      if (s.month >= BATTLE_MONTHS) return; // guard against double-fire
       const nextM = s.month + 1;
       if (s.eventIdx < 2 && s.events[s.eventIdx]?.atMonth === nextM) {
         s.pendingShocks = s.events[s.eventIdx].ev.shocks;

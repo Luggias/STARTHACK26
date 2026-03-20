@@ -213,10 +213,13 @@ export default function SandboxPage() {
   const setFavoriteStrategy   = useGameStore((s) => s.setFavoriteStrategy);
 
   const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
+  const [battleKey, setBattleKey]       = useState(0);
   const [pvpOpponent, setPvpOpponent]   = useState<string | null>(null);
   const [pvpOpponentAlloc, setPvpOpponentAlloc] = useState<Record<string, number> | null>(null);
   const [pvpSeed, setPvpSeed]           = useState<number | null>(null);
+  const [strategiesExpanded, setStrategiesExpanded] = useState(false);
   const [nameInput, setNameInput]       = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
   const [nameError, setNameError]       = useState("");
   const [nameClaiming, setNameClaiming] = useState(false);
   const [localIq, setLocalIq]           = useState(0);
@@ -226,17 +229,20 @@ export default function SandboxPage() {
   const handleClaimName = async () => {
     const name = nameInput.trim();
     if (!name) return;
+    if (passwordInput.length < 3) { setNameError("Password must be at least 3 characters."); return; }
     setNameError("");
     setNameClaiming(true);
     try {
-      await claimUsername(name);
-      setPlayerName(name);
+      const res = await claimUsername(name, passwordInput);
+      setPlayerName(res.username);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed";
-      if (msg.includes("409") || msg.toLowerCase().includes("taken")) {
-        setNameError("Username already taken. Try another one.");
+      if (msg.includes("401") || msg.toLowerCase().includes("wrong password")) {
+        setNameError("Wrong password for this username.");
+      } else if (msg.includes("400")) {
+        setNameError("Username/password invalid. Check requirements.");
       } else {
-        setNameError("Could not claim username. Try again.");
+        setNameError("Could not log in. Try again.");
       }
     } finally {
       setNameClaiming(false);
@@ -271,9 +277,11 @@ export default function SandboxPage() {
         if (!active) return;
         if (hb.go_to_battle) {
             // Challenge was accepted — open battle with favorite strategy
-            const opName = onlinePlayers.find(p => p.id === challengeSent)?.username ?? "Opponent";
-            const favIdx = useGameStore.getState().favoriteStrategyIndex;
-            const strat = strategies[favIdx] ?? strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+            // Use getState() to avoid stale closures
+            const store = useGameStore.getState();
+            const favIdx = store.favoriteStrategyIndex;
+            const strat = store.strategies[favIdx] ?? store.strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+            const opName = hb.opponent_name ?? "Opponent";
             setPvpOpponent(opName);
             if (hb.opponent_allocation) setPvpOpponentAlloc(hb.opponent_allocation);
             if (hb.seed) setPvpSeed(hb.seed);
@@ -286,7 +294,6 @@ export default function SandboxPage() {
         // Fetch online players
         const { players } = await presenceOnline();
         if (!active) return;
-        console.log("[presence] online:", players.length, "players", players.map(p => p.username));
         setOnlinePlayers(players.filter((p) => p.id !== playerId));
 
         // Check for incoming challenges
@@ -559,19 +566,23 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
               <p className="mb-1 font-mono text-[10px] md:text-xs uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
               <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
-              <p className="mb-8 text-xs md:text-sm text-white/40">Choose a unique name — it will appear on the leaderboard.</p>
+              <p className="mb-8 text-xs md:text-sm text-white/40">Choose a unique name and password. If you already have an account, enter your credentials to log in.</p>
               <input
-                type="text" maxLength={20} placeholder="e.g. WallStreetWolf"
+                type="text" maxLength={20} placeholder="Username"
                 value={nameInput} onChange={e => { setNameInput(e.target.value); setNameError(""); }}
-                onKeyDown={e => e.key === "Enter" && nameInput.trim() && handleClaimName()}
+                className={`mb-3 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
+              <input
+                type="password" placeholder="Password"
+                value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setNameError(""); }}
+                onKeyDown={e => e.key === "Enter" && nameInput.trim() && passwordInput.length >= 3 && handleClaimName()}
                 className={`mb-2 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
               {nameError && <p className="mb-2 font-mono text-xs text-[#ff453a]">{nameError}</p>}
               {!nameError && <div className="mb-2" />}
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                disabled={!nameInput.trim() || nameClaiming}
+                disabled={!nameInput.trim() || passwordInput.length < 3 || nameClaiming}
                 onClick={handleClaimName}
                 className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
-                {nameClaiming ? "CLAIMING..." : "ENTER ARENA →"}
+                {nameClaiming ? "LOGGING IN..." : "ENTER ARENA →"}
               </motion.button>
             </motion.div>
           </motion.div>
@@ -693,6 +704,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       <AnimatePresence>
         {battleTarget && (
           <BattleArena
+            key={battleKey}
             strategy={battleTarget}
             playerName={playerName}
             onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); setChallengeSent(null); presenceBattleEnd(playerName).catch(() => {}); }}
@@ -704,6 +716,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 cpuReturnPct,
                 won,
                 date: new Date().toLocaleDateString(),
+                opponentName: pvpOpponent ?? "A.I. FUND",
               });
               const isPvP = !!pvpOpponent;
               reportResult(playerName, won, returnPct, isPvP).then(r => setLocalIq(r.iq)).catch(() => {});
@@ -711,7 +724,11 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             opponentName={pvpOpponent ?? undefined}
             opponentAllocation={pvpOpponentAlloc ?? undefined}
             seed={pvpSeed ?? undefined}
-            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); setChallengeSent(null); presenceBattleEnd(playerName).catch(() => {}); }}
+            onPlayAgain={() => {
+              presenceBattleEnd(playerName).catch(() => {});
+              setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); setChallengeSent(null);
+              setBattleKey(k => k + 1);
+            }}
           />
         )}
       </AnimatePresence>
@@ -770,7 +787,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         {p.in_battle && <span className="font-mono text-[9px] uppercase text-[#ff9f0a]/60">in battle</span>}
                       </div>
                       {p.in_battle ? null : strategies.length === 0 ? (
-                        <span className="font-mono text-[9px] text-white/25">need strategy</span>
+                        <span className="font-mono text-[9px] text-white/25">create a strategy first</span>
                       ) : (
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                           disabled={!!challengeSent}
@@ -814,20 +831,28 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           </motion.button>
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {strategies.map((s, i) => (
-            <StrategyCard key={i} strategy={s}
-              onDelete={() => deleteStrategy(i)}
-              onEdit={() => openBuilder(i)}
-              onTest={() => openTest(s, i)}
-              onBattle={() => startMatchmaking(s)}
-              onRename={(name) => updateStrategy(i, { ...s, name })}
-              isFavorite={i === favoriteStrategyIndex}
-              onToggleFavorite={() => setFavoriteStrategy(i)}
-              isOnlyStrategy={strategies.length === 1}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(strategiesExpanded ? strategies : strategies.slice(0, 5)).map((s, i) => (
+              <StrategyCard key={i} strategy={s}
+                onDelete={() => deleteStrategy(i)}
+                onEdit={() => openBuilder(i)}
+                onTest={() => openTest(s, i)}
+                onBattle={() => startMatchmaking(s)}
+                onRename={(name) => updateStrategy(i, { ...s, name })}
+                isFavorite={i === favoriteStrategyIndex}
+                onToggleFavorite={() => setFavoriteStrategy(i)}
+                isOnlyStrategy={strategies.length === 1}
+              />
+            ))}
+          </div>
+          {strategies.length > 5 && (
+            <button onClick={() => setStrategiesExpanded(!strategiesExpanded)}
+              className="mt-3 w-full rounded-lg border border-[#00d4ff]/15 py-2 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#00d4ff]/50 transition-all hover:bg-[#00d4ff]/05 hover:text-[#00d4ff]/80">
+              {strategiesExpanded ? "SHOW LESS" : `SHOW ALL (${strategies.length})`}
+            </button>
+          )}
+        </>
       )}
 
       {/* ── Global Leaderboards ── */}
@@ -885,7 +910,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.05]">
-                  {["#", "PLAYER", "STRATEGY", "RETURN", "A.I.", "RESULT", "DATE"].map(h => (
+                  {["#", "PLAYER", "STRATEGY", "RETURN", "OPPONENT", "OPP. RETURN", "RESULT", "DATE"].map(h => (
                     <th key={h} className="px-4 py-2.5 md:py-3 text-left font-mono text-[9px] md:text-xs uppercase tracking-widest text-white/35">{h}</th>
                   ))}
                 </tr>
@@ -899,6 +924,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.returnPct >= 0 ? "#30d158" : "#ff453a" }}>
                       {r.returnPct >= 0 ? "+" : ""}{r.returnPct.toFixed(1)}%
                     </td>
+                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.opponentName ?? "A.I. FUND"}</td>
                     <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm tabular-nums text-white/45">
                       {r.cpuReturnPct >= 0 ? "+" : ""}{r.cpuReturnPct.toFixed(1)}%
                     </td>

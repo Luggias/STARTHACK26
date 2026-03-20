@@ -133,7 +133,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "cmiyc-game-store",
-      version: 3,
+      version: 4,
       migrate: () => ({
         user: null,
         token: null,
