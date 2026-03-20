@@ -29,8 +29,17 @@ export default function PerformanceChart({
   color2 = "#EF4444",
   height: heightProp,
 }: PerformanceChartProps) {
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const height = heightProp ?? (isMobile ? Math.round(window.innerHeight * 0.3) : 300);
+  const [height, setHeight] = useState(heightProp ?? 300);
+  useEffect(() => {
+    const compute = () => {
+      if (heightProp != null) return;
+      const mobile = window.innerWidth < 768;
+      setHeight(mobile ? Math.round(window.innerHeight * 0.3) : 300);
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [heightProp]);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const series1Ref = useRef<ISeriesApi<"Line"> | null>(null);
@@ -84,12 +93,10 @@ export default function PerformanceChart({
 
     chartRef.current = chart;
 
-    // Responsive
+    // Responsive width
     const handleResize = () => {
       if (containerRef.current) {
-        const mobile = window.innerWidth < 768;
-        const newHeight = heightProp ?? (mobile ? Math.round(window.innerHeight * 0.3) : 300);
-        chart.applyOptions({ width: containerRef.current.clientWidth, height: newHeight });
+        chart.applyOptions({ width: containerRef.current.clientWidth });
       }
     };
     window.addEventListener("resize", handleResize);
@@ -101,6 +108,11 @@ export default function PerformanceChart({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sync chart height when it changes
+  useEffect(() => {
+    if (chartRef.current) chartRef.current.applyOptions({ height });
+  }, [height]);
 
   // Animate data or set all at once
   useEffect(() => {

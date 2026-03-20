@@ -449,6 +449,12 @@ export default function SandboxPage() {
   }
 
   function fightBot() {
+    matchCancelled.current = true;
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    if (matchRoomId.current) {
+      cancelBattle(matchRoomId.current).catch(() => {});
+      matchRoomId.current = null;
+    }
     const strategy = matchmaking;
     setMatchmaking(null);
     if (strategy) setBattleTarget(strategy);
@@ -855,15 +861,6 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         <div className="h-px flex-1 bg-[#00d4ff]/20" />
       </div>
 
-      {/* List header */}
-      <div className="mb-4 flex items-center justify-between">
-        <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
-        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
-          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
-          <span className="text-base leading-none">+</span> NEW STRATEGY
-        </motion.button>
-      </div>
-
       {/* Online players — always visible */}
       {playerName && (
         <div className="mb-6 rounded-xl border border-[#30d158]/20 bg-[#30d158]/[0.03]">
@@ -919,6 +916,15 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           </div>
         </div>
       )}
+
+      {/* List header */}
+      <div className="mb-4 flex items-center justify-between">
+        <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
+          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+          <span className="text-base leading-none">+</span> NEW STRATEGY
+        </motion.button>
+      </div>
 
       {/* Strategy grid */}
       {strategies.length === 0 ? (
