@@ -49,6 +49,7 @@ from db.sqlite_store import (
     get_battles as _sqlite_get_battles,
     get_iq_leaderboard as _sqlite_get_iq_leaderboard,
     get_highscore_leaderboard as _sqlite_get_highscore_leaderboard,
+    get_relative_return_leaderboard as _sqlite_get_relative_return_leaderboard,
     save_strategies as _sqlite_save_strategies,
     get_strategies as _sqlite_get_strategies,
 )
@@ -1015,21 +1016,26 @@ class ReportResultReq(BaseModel):
     is_pvp: bool
     opponent_name: str = "A.I. FUND"
     strategy_name: str = ""
+    player_allocation: dict | None = None
+    opponent_allocation: dict | None = None
+    scenario_key: str | None = None
 
 
 @app.post("/guest/report-result")
 def guest_report_result(req: ReportResultReq):
     user = _sqlite_get_user(req.player_name)
     if not user:
-        # Auto-create a guest row if it doesn't exist yet (e.g. legacy client)
         user = _sqlite_create_user(req.player_name, req.player_name, hash_password(""))
     iq = user["iq"]
-    best_return = user["best_return"]
+    highscore = user.get("highscore", user.get("best_return", -999.0))
+    # Award IQ for all battles: PvP gives more
     if req.is_pvp:
         iq = max(0, iq + (10 if req.won else 5))
-    if req.return_pct > best_return:
-        best_return = req.return_pct
-    _sqlite_update_user_stats(req.player_name, iq, best_return)
+    else:
+        iq = max(0, iq + (5 if req.won else 2))
+    if req.return_pct > highscore:
+        highscore = req.return_pct
+    _sqlite_update_user_stats(req.player_name, iq, highscore)
     _sqlite_save_battle(
         player_name=req.player_name,
         opponent_name=req.opponent_name,
@@ -1038,8 +1044,11 @@ def guest_report_result(req: ReportResultReq):
         opponent_return=req.opponent_return_pct,
         won=req.won,
         is_pvp=req.is_pvp,
+        player_allocation=req.player_allocation,
+        opponent_allocation=req.opponent_allocation,
+        scenario_key=req.scenario_key,
     )
-    return {"iq": iq, "best_return": best_return}
+    return {"iq": iq, "highscore": highscore}
 
 
 @app.get("/guest/leaderboard")
@@ -1047,6 +1056,7 @@ def guest_leaderboard():
     return {
         "iq_leaderboard": _sqlite_get_iq_leaderboard(),
         "highscore_leaderboard": _sqlite_get_highscore_leaderboard(),
+        "relative_return_leaderboard": _sqlite_get_relative_return_leaderboard(),
     }
 
 
@@ -1054,7 +1064,8 @@ def guest_leaderboard():
 def guest_stats(player_name: str):
     user = _sqlite_get_user(player_name)
     iq = user["iq"] if user else 0
-    return {"player_name": player_name, "iq": iq}
+    highscore = user.get("highscore", user.get("best_return", -999.0)) if user else -999.0
+    return {"player_name": player_name, "iq": iq, "highscore": highscore}
 
 
 class SyncStrategiesReq(BaseModel):

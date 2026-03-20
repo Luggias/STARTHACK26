@@ -239,7 +239,8 @@ export default function SandboxPage() {
   const [nameClaiming, setNameClaiming] = useState(false);
   const [localIq, setLocalIq]           = useState(0);
   const [iqLeaderboard, setIqLeaderboard]               = useState<{ player_name: string; iq: number }[]>([]);
-  const [highscoreLeaderboard, setHighscoreLeaderboard] = useState<{ player_name: string; best_return: number }[]>([]);
+  const [highscoreLeaderboard, setHighscoreLeaderboard] = useState<{ player_name: string; highscore: number }[]>([]);
+  const [relativeReturnLeaderboard, setRelativeReturnLeaderboard] = useState<{ player_name: string; relative_return: number }[]>([]);
   const [serverBattleRecords, setServerBattleRecords]   = useState<GuestBattleRecord[]>([]);
 
   const isReturningUser = !!playerName;
@@ -342,7 +343,7 @@ export default function SandboxPage() {
     let active = true;
     const fetchAll = () => {
       getGuestStats(playerName).then(r => { if (active) setLocalIq(r.iq); }).catch(() => {});
-      getGuestLeaderboard().then(r => { if (active) { setIqLeaderboard(r.iq_leaderboard); setHighscoreLeaderboard(r.highscore_leaderboard); } }).catch(() => {});
+      getGuestLeaderboard().then(r => { if (active) { setIqLeaderboard(r.iq_leaderboard); setHighscoreLeaderboard(r.highscore_leaderboard); setRelativeReturnLeaderboard(r.relative_return_leaderboard ?? []); } }).catch(() => {});
       getGuestBattles(playerName).then(r => { if (active) setServerBattleRecords(r); }).catch(() => {});
     };
     fetchAll();
@@ -808,7 +809,12 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 opponentName: pvpOpponent ?? "A.I. FUND",
               });
               const isPvP = !!pvpOpponent;
-              reportResult(playerName, won, returnPct, isPvP, cpuReturnPct, pvpOpponent ?? "A.I. FUND", battleTarget.name)
+              reportResult(
+                playerName, won, returnPct, isPvP, cpuReturnPct,
+                pvpOpponent ?? "A.I. FUND", battleTarget.name,
+                battleTarget.allocation as Record<string, number>,
+                pvpOpponentAlloc ?? undefined,
+              )
                 .then(r => { setLocalIq(r.iq); getGuestBattles(playerName).then(b => setServerBattleRecords(b)).catch(() => {}); })
                 .catch(() => {});
             }}
@@ -949,14 +955,14 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       )}
 
       {/* ── Global Leaderboards ── */}
-      {(iqLeaderboard.length > 0 || highscoreLeaderboard.length > 0) && (
+      {(iqLeaderboard.length > 0 || highscoreLeaderboard.length > 0 || relativeReturnLeaderboard.length > 0) && (
         <div className="mt-12">
           <div className="mb-4 flex items-center gap-4">
             <div className="h-px flex-1 bg-[#bf5af2]/20" />
             <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-[#bf5af2]">◈ GLOBAL LEADERBOARDS</span>
             <div className="h-px flex-1 bg-[#bf5af2]/20" />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {/* IQ Leaderboard */}
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a]">IQ LEADERBOARD</p>
@@ -974,7 +980,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             </div>
             {/* Highscore Leaderboard */}
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158]">BEST RETURN</p>
+              <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#30d158]">HIGHSCORE</p>
               {highscoreLeaderboard.length === 0 ? (
                 <p className="font-mono text-xs text-white/25">No data yet</p>
               ) : highscoreLeaderboard.map((e, i) => (
@@ -983,7 +989,22 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
                     <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#30d158]" : "text-white/70"}`}>{e.player_name}</span>
                   </div>
-                  <span className="font-mono text-xs font-bold text-[#30d158]">+{e.best_return.toFixed(1)}%</span>
+                  <span className="font-mono text-xs font-bold text-[#30d158]">+{e.highscore.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+            {/* Relative Return Leaderboard */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <p className="mb-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff]">TOP MARGINS</p>
+              {relativeReturnLeaderboard.length === 0 ? (
+                <p className="font-mono text-xs text-white/25">No data yet</p>
+              ) : relativeReturnLeaderboard.map((e, i) => (
+                <div key={`${e.player_name}-${i}`} className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
+                    <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#00d4ff]" : "text-white/70"}`}>{e.player_name}</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-[#00d4ff]">+{e.relative_return.toFixed(1)}%</span>
                 </div>
               ))}
             </div>

@@ -27,8 +27,10 @@ export default function PerformanceChart({
   color = "#3B82F6",
   values2,
   color2 = "#EF4444",
-  height = 300,
+  height: heightProp,
 }: PerformanceChartProps) {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const height = heightProp ?? (isMobile ? Math.round(window.innerHeight * 0.3) : 300);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const series1Ref = useRef<ISeriesApi<"Line"> | null>(null);
@@ -85,7 +87,9 @@ export default function PerformanceChart({
     // Responsive
     const handleResize = () => {
       if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+        const mobile = window.innerWidth < 768;
+        const newHeight = heightProp ?? (mobile ? Math.round(window.innerHeight * 0.3) : 300);
+        chart.applyOptions({ width: containerRef.current.clientWidth, height: newHeight });
       }
     };
     window.addEventListener("resize", handleResize);

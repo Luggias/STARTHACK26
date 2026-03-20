@@ -388,7 +388,10 @@ export async function reportResult(
   opponentReturnPct = 0,
   opponentName = "A.I. FUND",
   strategyName = "",
-): Promise<{ iq: number; best_return: number }> {
+  playerAllocation?: Record<string, number>,
+  opponentAllocation?: Record<string, number>,
+  scenarioKey?: string,
+): Promise<{ iq: number; highscore: number }> {
   return fetchJson("/guest/report-result", {
     method: "POST",
     body: JSON.stringify({
@@ -399,13 +402,17 @@ export async function reportResult(
       is_pvp: isPvP,
       opponent_name: opponentName,
       strategy_name: strategyName,
+      player_allocation: playerAllocation,
+      opponent_allocation: opponentAllocation,
+      scenario_key: scenarioKey,
     }),
   });
 }
 
 export async function getGuestLeaderboard(): Promise<{
   iq_leaderboard: { player_name: string; iq: number }[];
-  highscore_leaderboard: { player_name: string; best_return: number }[];
+  highscore_leaderboard: { player_name: string; highscore: number }[];
+  relative_return_leaderboard: { player_name: string; relative_return: number; player_return: number; opponent_return: number }[];
 }> {
   return fetchJson("/guest/leaderboard");
 }
