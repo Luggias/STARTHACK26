@@ -49,15 +49,10 @@ for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]:
 
 app = FastAPI(title="Cache Me If You Can", version="2.0.0")
 
-# CORS: allow Next.js dev server + Vercel production
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# CORS: allow all origins for hackathon demo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8501",
-        frontend_url,
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

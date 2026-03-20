@@ -244,13 +244,14 @@ export default function SandboxPage() {
         // Fetch online players
         const { players } = await presenceOnline();
         if (!active) return;
+        console.log("[presence] online:", players.length, "players", players.map(p => p.username));
         setOnlinePlayers(players.filter((p) => p.id !== playerId));
 
         // Check for incoming challenges
         const { challenge } = await presenceGetChallenges(playerId);
         if (!active) return;
         if (challenge) setBattleRequest(challenge);
-      } catch { /* server unreachable — retry next tick */ }
+      } catch (err) { console.error("[presence] poll error:", err); }
     };
 
     poll();
