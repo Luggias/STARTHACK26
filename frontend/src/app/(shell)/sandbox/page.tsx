@@ -988,7 +988,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                     <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
                     <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#30d158]" : "text-white/70"}`}>{e.player_name}</span>
                   </div>
-                  <span className="font-mono text-xs font-bold text-[#30d158]">+{e.highscore.toFixed(1)}%</span>
+                  <span className={`font-mono text-xs font-bold ${e.highscore >= 0 ? "text-[#30d158]" : "text-[#ff453a]"}`}>{e.highscore >= 0 ? "+" : ""}{e.highscore.toFixed(1)}%</span>
                 </div>
               ))}
             </div>
@@ -1004,38 +1004,71 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-[#ff9f0a]">⚔ BATTLE RECORDS</span>
             <div className="h-px flex-1 bg-[#ff9f0a]/20" />
           </div>
-          <div className="overflow-hidden rounded-xl border border-white/[0.06]">
+
+          {/* Mobile: card layout */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {serverBattleRecords.map((r, i) => (
+              <div key={r.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-white/30">#{i + 1}</span>
+                    <span className="rounded-full px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest"
+                      style={{ background: r.won ? "rgba(48,209,88,0.12)" : "rgba(255,69,58,0.12)", color: r.won ? "#30d158" : "#ff453a" }}>
+                      {r.won ? "WIN" : "LOSS"}
+                    </span>
+                  </div>
+                  <span className="font-mono text-[9px] text-white/25">{r.played_at?.split("T")[0] ?? ""}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-white">{r.player_name}</span>
+                    <span className="font-mono text-[10px] text-white/25 mx-1">vs</span>
+                    <span className="font-mono text-[10px] text-white/45">{r.opponent_name}</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
+                    {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
+                  </span>
+                </div>
+                {r.strategy_name && (
+                  <p className="mt-1 font-mono text-[9px] text-white/30">{r.strategy_name}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table layout */}
+          <div className="hidden md:block overflow-hidden rounded-xl border border-white/[0.06]">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/[0.05]">
                   {["#", "MATCHUP", "STRATEGY", "RETURN", "OPP. RETURN", "RESULT", "DATE"].map(h => (
-                    <th key={h} className="px-4 py-2.5 md:py-3 text-left font-mono text-[9px] md:text-xs uppercase tracking-widest text-white/35">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-widest text-white/35">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {serverBattleRecords.map((r, i) => (
                   <tr key={r.id} className="border-b border-white/[0.03] transition-colors hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/30">{i + 1}</td>
-                    <td className="px-4 py-3 md:py-3.5">
-                      <span className="font-mono text-xs md:text-sm font-bold text-white">{r.player_name}</span>
-                      <span className="font-mono text-[10px] md:text-xs text-white/30 mx-1.5">vs</span>
-                      <span className="font-mono text-[10px] md:text-xs text-white/55">{r.opponent_name}</span>
+                    <td className="px-4 py-3.5 font-mono text-xs text-white/30">{i + 1}</td>
+                    <td className="px-4 py-3.5">
+                      <span className="font-mono text-sm font-bold text-white">{r.player_name}</span>
+                      <span className="font-mono text-xs text-white/30 mx-1.5">vs</span>
+                      <span className="font-mono text-xs text-white/55">{r.opponent_name}</span>
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[10px] md:text-xs text-white/55">{r.strategy_name}</td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
+                    <td className="px-4 py-3.5 font-mono text-xs text-white/55">{r.strategy_name}</td>
+                    <td className="px-4 py-3.5 font-mono text-sm font-bold tabular-nums" style={{ color: r.player_return >= 0 ? "#30d158" : "#ff453a" }}>
                       {r.player_return >= 0 ? "+" : ""}{r.player_return.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-xs md:text-sm tabular-nums text-white/45">
+                    <td className="px-4 py-3.5 font-mono text-sm tabular-nums text-white/45">
                       {r.opponent_return >= 0 ? "+" : ""}{r.opponent_return.toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 md:py-3.5">
-                      <span className="rounded-full px-2.5 py-1 md:px-3 md:py-1.5 font-mono text-[9px] md:text-xs font-bold uppercase tracking-widest"
+                    <td className="px-4 py-3.5">
+                      <span className="rounded-full px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-widest"
                         style={{ background: r.won ? "rgba(48,209,88,0.12)" : "rgba(255,69,58,0.12)", color: r.won ? "#30d158" : "#ff453a" }}>
                         {r.won ? "WIN" : "LOSS"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 md:py-3.5 font-mono text-[9px] md:text-xs text-white/30">{r.played_at?.split("T")[0] ?? ""}</td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-white/30">{r.played_at?.split("T")[0] ?? ""}</td>
                   </tr>
                 ))}
               </tbody>
