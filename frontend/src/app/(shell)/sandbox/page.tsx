@@ -208,6 +208,8 @@ export default function SandboxPage() {
   const deleteStrategy   = useGameStore((s) => s.deleteStrategy);
   const playerName       = useGameStore((s) => s.playerName);
   const setPlayerName    = useGameStore((s) => s.setPlayerName);
+  const authenticated    = useGameStore((s) => s.authenticated);
+  const setAuthenticated = useGameStore((s) => s.setAuthenticated);
   const battleRecords    = useGameStore((s) => s.battleRecords);
   const addBattleRecord  = useGameStore((s) => s.addBattleRecord);
   const favoriteStrategyIndex = useGameStore((s) => s.favoriteStrategyIndex);
@@ -228,8 +230,10 @@ export default function SandboxPage() {
   const [highscoreLeaderboard, setHighscoreLeaderboard] = useState<{ player_name: string; best_return: number }[]>([]);
   const [serverBattleRecords, setServerBattleRecords]   = useState<GuestBattleRecord[]>([]);
 
+  const isReturningUser = !!playerName;
+
   const handleClaimName = async () => {
-    const name = nameInput.trim();
+    const name = (isReturningUser ? playerName : nameInput.trim());
     if (!name) return;
     if (passwordInput.length < 3) { setNameError("Password must be at least 3 characters."); return; }
     setNameError("");
@@ -237,10 +241,11 @@ export default function SandboxPage() {
     try {
       const res = await claimUsername(name, passwordInput);
       setPlayerName(res.username);
+      setAuthenticated(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed";
       if (msg.includes("401") || msg.toLowerCase().includes("wrong password")) {
-        setNameError("Wrong password for this username.");
+        setNameError("Wrong password.");
       } else if (msg.includes("400")) {
         setNameError("Username/password invalid. Check requirements.");
       } else {
@@ -249,6 +254,14 @@ export default function SandboxPage() {
     } finally {
       setNameClaiming(false);
     }
+  };
+
+  const handleSwitchAccount = () => {
+    setPlayerName("");
+    setAuthenticated(false);
+    setNameInput("");
+    setPasswordInput("");
+    setNameError("");
   };
 
   /* Matchmaking state */
@@ -267,7 +280,7 @@ export default function SandboxPage() {
   const [challengeSent, setChallengeSent] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!playerName) return;
+    if (!playerName || !authenticated) return;
     const playerId = playerName;
     let active = true;
 
@@ -309,11 +322,11 @@ export default function SandboxPage() {
     const interval = setInterval(poll, 3000);
     return () => { active = false; clearInterval(interval); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerName]);
+  }, [playerName, authenticated]);
 
   /* Fetch IQ stats + leaderboard */
   useEffect(() => {
-    if (!playerName) return;
+    if (!playerName || !authenticated) return;
     let active = true;
     const fetchAll = () => {
       getGuestStats(playerName).then(r => { if (active) setLocalIq(r.iq); }).catch(() => {});
@@ -323,7 +336,7 @@ export default function SandboxPage() {
     fetchAll();
     const iv = setInterval(fetchAll, 10000);
     return () => { active = false; clearInterval(iv); };
-  }, [playerName]);
+  }, [playerName, authenticated]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
     setMatchmaking(strategy);
@@ -559,34 +572,67 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
         backgroundSize: "48px 48px",
       }}
     >
-      {/* ── Name modal (blocks UI until name is set) ── */}
+      {/* ── Auth modal (blocks UI until authenticated) ── */}
       <AnimatePresence>
-        {!playerName && (
+        {!authenticated && (
           <motion.div className="fixed inset-0 z-50 flex items-center justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ background: "rgba(6,6,14,0.97)", backgroundImage: "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)", backgroundSize: "48px 48px" }}>
             <motion.div className="w-full max-w-sm md:max-w-md px-8 py-12 md:px-10 md:py-14 rounded-2xl border border-[#00d4ff]/25 bg-white/[0.02]"
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
               <p className="mb-1 font-mono text-[10px] md:text-xs uppercase tracking-[0.3em] text-[#00d4ff]/60">◈ CACHE ME IF YOU CAN</p>
-              <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">ENTER YOUR<br />CALLSIGN</p>
-              <p className="mb-8 text-xs md:text-sm text-white/40">Choose a unique name and password. If you already have an account, enter your credentials to log in.</p>
-              <input
-                type="text" maxLength={20} placeholder="Username"
-                value={nameInput} onChange={e => { setNameInput(e.target.value); setNameError(""); }}
-                className={`mb-3 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
-              <input
-                type="password" placeholder="Password"
-                value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setNameError(""); }}
-                onKeyDown={e => e.key === "Enter" && nameInput.trim() && passwordInput.length >= 3 && handleClaimName()}
-                className={`mb-2 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
-              {nameError && <p className="mb-2 font-mono text-xs text-[#ff453a]">{nameError}</p>}
-              {!nameError && <div className="mb-2" />}
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                disabled={!nameInput.trim() || passwordInput.length < 3 || nameClaiming}
-                onClick={handleClaimName}
-                className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
-                {nameClaiming ? "LOGGING IN..." : "ENTER ARENA →"}
-              </motion.button>
+
+              {isReturningUser ? (
+                <>
+                  <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">WELCOME BACK</p>
+                  <div className="mb-6 flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2997ff] font-mono text-sm font-bold text-white">
+                      {playerName[0]?.toUpperCase()}
+                    </div>
+                    <p className="font-mono text-lg font-bold text-white">{playerName}</p>
+                  </div>
+                  <input
+                    type="password" placeholder="Enter your password" autoFocus
+                    value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setNameError(""); }}
+                    onKeyDown={e => e.key === "Enter" && passwordInput.length >= 3 && handleClaimName()}
+                    className={`mb-2 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
+                  {nameError && <p className="mb-2 font-mono text-xs text-[#ff453a]">{nameError}</p>}
+                  {!nameError && <div className="mb-2" />}
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    disabled={passwordInput.length < 3 || nameClaiming}
+                    onClick={handleClaimName}
+                    className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
+                    {nameClaiming ? "LOGGING IN..." : "LOG IN →"}
+                  </motion.button>
+                  <button onClick={handleSwitchAccount}
+                    className="mt-4 w-full font-mono text-xs text-white/30 hover:text-white/50 transition-colors">
+                    Not {playerName}? Use a different account
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mb-2 font-mono text-2xl md:text-3xl font-bold text-white">CREATE YOUR<br />CALLSIGN</p>
+                  <p className="mb-8 text-xs md:text-sm text-white/40">Pick a unique username and password to get started.</p>
+                  <input
+                    type="text" maxLength={20} placeholder="Username" autoFocus
+                    value={nameInput} onChange={e => { setNameInput(e.target.value); setNameError(""); }}
+                    className={`mb-3 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
+                  <input
+                    type="password" placeholder="Password (min 3 chars)"
+                    value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setNameError(""); }}
+                    onKeyDown={e => e.key === "Enter" && nameInput.trim() && passwordInput.length >= 3 && handleClaimName()}
+                    className={`mb-2 w-full rounded-xl border bg-white/[0.03] px-4 py-3 md:px-5 md:py-4 font-mono text-sm md:text-base text-white placeholder-white/20 outline-none transition-all ${nameError ? "border-[#ff453a]/60" : "border-[#00d4ff]/25 focus:border-[#00d4ff]/60"}`} />
+                  {nameError && <p className="mb-2 font-mono text-xs text-[#ff453a]">{nameError}</p>}
+                  {!nameError && <div className="mb-2" />}
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    disabled={!nameInput.trim() || passwordInput.length < 3 || nameClaiming}
+                    onClick={handleClaimName}
+                    className="w-full rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 py-3 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20 disabled:opacity-30 disabled:cursor-not-allowed">
+                    {nameClaiming ? "CREATING..." : "CREATE ACCOUNT →"}
+                  </motion.button>
+                  <p className="mt-4 text-center font-mono text-xs text-white/30">Already have an account? Just enter your existing username and password.</p>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -15,6 +15,10 @@ interface GameState {
   playerName: string;
   setPlayerName: (n: string) => void;
 
+  /* Session auth (not persisted — must re-login each session) */
+  authenticated: boolean;
+  setAuthenticated: (v: boolean) => void;
+
   /* Learning progression */
   unlockedAssets: string[];
   unlockAsset: (asset: string) => void;
@@ -94,6 +98,9 @@ export const useGameStore = create<GameState>()(
 
       playerName: "",
       setPlayerName: (n) => set({ playerName: n }),
+
+      authenticated: false,
+      setAuthenticated: (v) => set({ authenticated: v }),
 
       unlockedAssets: ["stocks"],
       unlockAsset: (asset) =>
