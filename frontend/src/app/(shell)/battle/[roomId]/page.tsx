@@ -88,9 +88,10 @@ export default function BattleRoomPage() {
   useEffect(() => {
     if (!playerId || !playerUsername || !roomId) return;
     resetAllocation(); setMonths([]); setP1Values([]); setP2Values([]);
-    const s = createBattleSocket(roomId, handleMessage);
+    const s = createBattleSocket(roomId, handleMessage, undefined, () => {
+      s.send({ type: "join", player_id: playerId, username: playerUsername });
+    });
     socketRef.current = s;
-    setTimeout(() => s.send({ type: "join", player_id: playerId, username: playerUsername }), 100);
     return () => { s.close(); if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, playerId]);

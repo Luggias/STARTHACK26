@@ -17,12 +17,14 @@ export function createBattleSocket(
   roomId: string,
   onMessage: MessageHandler,
   onClose?: () => void,
+  onOpen?: () => void,
 ) {
   const url = `${WS_URL}/ws/battle/${roomId}`;
   const ws = new WebSocket(url);
 
   ws.onopen = () => {
     console.log(`[WS] Connected to room ${roomId}`);
+    onOpen?.();
   };
 
   ws.onmessage = (event) => {

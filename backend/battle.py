@@ -141,25 +141,36 @@ async def handle_join(room: BattleRoom, ws: WebSocket, data: dict) -> None:
     player_id = data.get("player_id", "")
     username = data.get("username", "Player")
 
+    p1_id = room.player1.player_id if room.player1 else None
+    p2_id = room.player2.player_id if room.player2 else None
+    print(f"[battle] handle_join: room={room.room_id} status={room.status.value} joining={player_id} p1={p1_id} p2={p2_id}")
+
     if room.player1 and room.player1.player_id == player_id:
         room.player1.ws = ws
+        print(f"[battle] matched as player1")
         if not room.is_full():
             await send_to(room.player1, {"type": "waiting"})
     elif room.player2 and room.player2.player_id == player_id:
         room.player2.ws = ws
+        print(f"[battle] matched as player2")
     elif room.player1 and not room.player2:
         room.player2 = Player(player_id=player_id, username=username, ws=ws)
+        print(f"[battle] added as new player2")
     else:
+        print(f"[battle] REJECTED - room full or no match")
         await ws.send_text(json.dumps({"type": "error", "message": "Room is full"}))
         return
 
     # Start building once both players have WebSocket connections
+    has_p1_ws = room.player1 is not None and room.player1.ws is not None
+    has_p2_ws = room.player2 is not None and room.player2.ws is not None
+    print(f"[battle] check start: status={room.status.value} full={room.is_full()} p1_ws={has_p1_ws} p2_ws={has_p2_ws}")
     if (
         room.status == RoomStatus.WAITING
         and room.is_full()
-        and room.player1 and room.player1.ws
-        and room.player2 and room.player2.ws
+        and has_p1_ws and has_p2_ws
     ):
+        print(f"[battle] >>> START BUILDING")
         await start_building(room)
 
 
