@@ -436,53 +436,34 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between border-b border-[#00d4ff]/10 px-6 py-3 md:px-8 md:py-4">
-        <div className="flex items-center gap-3 md:gap-4">
-          <span className="font-mono text-xs md:text-sm font-bold text-[#00d4ff]">⚔ ARENA</span>
-          <span className="font-mono text-[10px] md:text-xs text-white/35 uppercase tracking-widest">YEAR {year} / 10</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="h-1.5 md:h-2 w-40 md:w-56 overflow-hidden rounded-full bg-white/[0.06]">
-            <motion.div className="h-full rounded-full bg-[#00d4ff]" style={{ width: `${(month / BATTLE_MONTHS) * 100}%` }} />
+      <div className="border-b border-[#00d4ff]/10 px-6 py-3 md:px-8 md:py-4">
+        {/* Player names + returns */}
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#00d4ff]">{playerName}</span>
+            <span className="font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</span>
+          </div>
+          <span className="font-mono text-[10px] md:text-xs text-white/30 uppercase tracking-widest">YR {year}/10</span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs md:text-sm font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
+            <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">{enemyName}</span>
           </div>
         </div>
-      </div>
 
-      {/* ── HP bars ── */}
-      <div className="grid grid-cols-2 gap-px border-b border-white/[0.04]">
-        <div className="px-6 py-3 md:px-8 md:py-4 border-r border-white/[0.04]">
-          <div className="mb-1 md:mb-2 flex items-center justify-between">
-            <div>
-              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#00d4ff]">{playerName}</span>
-              <span className="ml-2 font-mono text-[9px] md:text-[11px] text-[#00d4ff]/40">THE KNIGHT</span>
-            </div>
-            <span className="font-mono text-sm md:text-base font-bold tabular-nums" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</span>
-          </div>
-          <motion.div className="h-2 md:h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
-            animate={pDesperate ? { boxShadow: ["0 0 0px #ff453a00", "0 0 8px #ff453a80", "0 0 0px #ff453a00"] } : {}}
-            transition={pDesperate ? { duration: 0.9, repeat: Infinity } : {}}>
-            <motion.div className="h-full rounded-full" layout
-              style={{ width: `${Math.min(100, (pCur / 18000) * 100)}%`, background: pCur < 10000 ? "linear-gradient(90deg,#ff453a,#ff9f0a)" : "linear-gradient(90deg,#00d4ff,#7c3aed)" }}
-              transition={{ duration: 0.4 }} />
-          </motion.div>
-          <p className="mt-1 font-mono text-[10px] md:text-xs tabular-nums text-white/50">${pCur.toFixed(0)}</p>
+        {/* Head-to-head bar — shows portfolio share of total */}
+        <div className="flex h-3 md:h-4 w-full overflow-hidden rounded-full bg-white/[0.04]">
+          <motion.div className="h-full rounded-l-full"
+            style={{ width: `${(pCur / (pCur + cCur)) * 100}%`, background: pWinning ? "linear-gradient(90deg,#00d4ff,#7c3aed)" : "linear-gradient(90deg,#00d4ff80,#7c3aed60)" }}
+            layout transition={{ duration: 0.4 }} />
+          <motion.div className="h-full rounded-r-full"
+            style={{ width: `${(cCur / (pCur + cCur)) * 100}%`, background: !pWinning ? "linear-gradient(270deg,#ff453a,#ff9f0a)" : "linear-gradient(270deg,#ff453a80,#ff9f0a60)" }}
+            layout transition={{ duration: 0.4 }} />
         </div>
-        <div className="px-6 py-3 md:px-8 md:py-4">
-          <div className="mb-1 md:mb-2 flex items-center justify-between">
-            <span className="font-mono text-sm md:text-base font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
-            <div className="text-right">
-              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">{enemyName}</span>
-              <span className="ml-2 font-mono text-[9px] md:text-[11px] text-[#ff453a]/40">THE KNIGHT</span>
-            </div>
-          </div>
-          <motion.div className="h-2 md:h-2.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
-            animate={cDesperate ? { boxShadow: ["0 0 0px #ff453a00", "0 0 8px #ff453a80", "0 0 0px #ff453a00"] } : {}}
-            transition={cDesperate ? { duration: 0.9, repeat: Infinity } : {}}>
-            <motion.div className="h-full rounded-full" layout
-              style={{ width: `${Math.min(100, (cCur / 18000) * 100)}%`, background: cCur < 10000 ? "linear-gradient(90deg,#ff453a,#ff9f0a)" : "linear-gradient(90deg,#ff453a,#ff9f0a)" }}
-              transition={{ duration: 0.4 }} />
-          </motion.div>
-          <p className="mt-1 font-mono text-[10px] md:text-xs tabular-nums text-right text-white/50">${cCur.toFixed(0)}</p>
+
+        {/* Portfolio values */}
+        <div className="mt-1 flex items-center justify-between">
+          <span className="font-mono text-[10px] md:text-xs tabular-nums text-white/40">${pCur.toFixed(0)}</span>
+          <span className="font-mono text-[10px] md:text-xs tabular-nums text-white/40">${cCur.toFixed(0)}</span>
         </div>
       </div>
 
