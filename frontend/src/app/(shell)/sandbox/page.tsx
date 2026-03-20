@@ -253,7 +253,7 @@ export default function SandboxPage() {
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Presence / online players (REST polling) */
-  const [worldOpen, setWorldOpen] = useState(false);
+  const [worldExpanded, setWorldExpanded] = useState(false);
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
   const [battleRequest, setBattleRequest] = useState<{ from_id: string; from_username: string; from_allocation?: Record<string, number> | null } | null>(null);
   const [challengeSent, setChallengeSent] = useState<string | null>(null);
@@ -279,6 +279,7 @@ export default function SandboxPage() {
             if (hb.seed) setPvpSeed(hb.seed);
             setBattleTarget(strat);
             setChallengeSent(null);
+            setBattleRequest(null);
             return;
           }
 
@@ -340,14 +341,14 @@ export default function SandboxPage() {
       try {
         if (!roomId) {
           // First call: try to join or create a room
-          const result = await quickmatch(playerId, playerName, matchmaking?.allocation);
+          const result = await quickmatch(playerId, playerName, strategy.allocation);
           if (matchCancelled.current) return;
 
           if (result.joined) {
             setPvpOpponent(result.opponent ?? "Opponent");
             if (result.opponent_allocation) setPvpOpponentAlloc(result.opponent_allocation);
             if (result.seed) setPvpSeed(result.seed);
-            setBattleTarget(matchmaking);
+            setBattleTarget(strategy);
             setMatchmaking(null);
             return;
           }
@@ -362,7 +363,7 @@ export default function SandboxPage() {
           if (data.player2) {
             setPvpOpponent(data.player2);
             if (data.player2_allocation) setPvpOpponentAlloc(data.player2_allocation);
-            setBattleTarget(matchmaking);
+            setBattleTarget(strategy);
             setMatchmaking(null);
             return;
           }
@@ -642,33 +643,47 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               <p className="mb-3 font-mono text-sm font-bold text-white">
                 <span className="text-[#ff9f0a]">{battleRequest.from_username}</span> wants to battle!
               </p>
-              <div className="flex gap-2">
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={async () => {
-                    const pid = playerName;
-                    const strat = strategies[favoriteStrategyIndex] ?? strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
-                    try {
-                      const resp = await presenceAccept(pid, battleRequest.from_id, strat.allocation);
-                      if (resp.opponent_allocation) setPvpOpponentAlloc(resp.opponent_allocation);
-                      if (resp.seed) setPvpSeed(resp.seed);
-                    } catch {}
-                    setPvpOpponent(battleRequest.from_username);
-                    setBattleTarget(strat);
-                    setBattleRequest(null);
-                  }}
-                  className="flex-1 rounded-lg bg-[#30d158] py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-[#3bde63]">
-                  ACCEPT
-                </motion.button>
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    const pid = playerName;
-                    presenceDecline(pid, battleRequest.from_id).catch(() => {});
-                    setBattleRequest(null);
-                  }}
-                  className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] py-2 font-mono text-xs font-bold uppercase text-white/50 transition-all hover:bg-white/[0.08]">
-                  DECLINE
-                </motion.button>
-              </div>
+              {strategies.length === 0 ? (
+                <div>
+                  <p className="mb-2 font-mono text-[10px] text-white/40">Create a strategy first to accept battles.</p>
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      presenceDecline(playerName, battleRequest.from_id).catch(() => {});
+                      setBattleRequest(null);
+                    }}
+                    className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 font-mono text-xs font-bold uppercase text-white/50 transition-all hover:bg-white/[0.08]">
+                    DISMISS
+                  </motion.button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={async () => {
+                      const pid = playerName;
+                      const strat = strategies[favoriteStrategyIndex] ?? strategies[0];
+                      try {
+                        const resp = await presenceAccept(pid, battleRequest.from_id, strat.allocation);
+                        if (resp.opponent_allocation) setPvpOpponentAlloc(resp.opponent_allocation);
+                        if (resp.seed) setPvpSeed(resp.seed);
+                      } catch {}
+                      setPvpOpponent(battleRequest.from_username);
+                      setBattleTarget(strat);
+                      setBattleRequest(null);
+                      setChallengeSent(null);
+                    }}
+                    className="flex-1 rounded-lg bg-[#30d158] py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-[#3bde63]">
+                    ACCEPT
+                  </motion.button>
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      presenceDecline(playerName, battleRequest.from_id).catch(() => {});
+                      setBattleRequest(null);
+                    }}
+                    className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] py-2 font-mono text-xs font-bold uppercase text-white/50 transition-all hover:bg-white/[0.08]">
+                    DECLINE
+                  </motion.button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -680,7 +695,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <BattleArena
             strategy={battleTarget}
             playerName={playerName}
-            onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); presenceBattleEnd(playerName).catch(() => {}); }}
+            onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); setChallengeSent(null); presenceBattleEnd(playerName).catch(() => {}); }}
             onResult={(won, returnPct, cpuReturnPct) => {
               addBattleRecord({
                 playerName,
@@ -696,7 +711,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
             opponentName={pvpOpponent ?? undefined}
             opponentAllocation={pvpOpponentAlloc ?? undefined}
             seed={pvpSeed ?? undefined}
-            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); presenceBattleEnd(playerName).catch(() => {}); }}
+            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); setChallengeSent(null); presenceBattleEnd(playerName).catch(() => {}); }}
           />
         )}
       </AnimatePresence>
@@ -726,61 +741,65 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
       {/* List header */}
       <div className="mb-4 flex items-center justify-between">
         <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-white/50">MY STRATEGIES</span>
-        <div className="flex items-center gap-2">
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setWorldOpen(!worldOpen)}
-            className="flex items-center gap-2 rounded-lg border border-[#30d158]/40 bg-[#30d158]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#30d158] transition-all hover:bg-[#30d158]/20">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#30d158] opacity-75" /><span className="inline-flex h-2 w-2 rounded-full bg-[#30d158]" /></span>
-            WORLD{onlinePlayers.length > 0 && ` (${onlinePlayers.length})`}
-          </motion.button>
-          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
-            className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
-            <span className="text-base leading-none">+</span> NEW STRATEGY
-          </motion.button>
-        </div>
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => openBuilder()}
+          className="flex items-center gap-2 rounded-lg border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-4 py-2 md:px-5 md:py-2.5 font-mono text-xs md:text-sm font-semibold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+          <span className="text-base leading-none">+</span> NEW STRATEGY
+        </motion.button>
       </div>
 
-      {/* Online players panel */}
-      <AnimatePresence>
-        {worldOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-            className="mb-6 overflow-hidden rounded-xl border border-[#30d158]/20 bg-[#30d158]/[0.03]">
-            <div className="px-5 py-4">
-              <div className="mb-3 flex items-center gap-3">
-                <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-[#30d158]">ONLINE PLAYERS</span>
-                <div className="h-px flex-1 bg-[#30d158]/15" />
-              </div>
-              {onlinePlayers.length === 0 ? (
-                <p className="py-4 text-center font-mono text-xs text-white/30">No other players online right now</p>
-              ) : (
+      {/* Online players — always visible */}
+      {playerName && (
+        <div className="mb-6 rounded-xl border border-[#30d158]/20 bg-[#30d158]/[0.03]">
+          <div className="px-5 py-4">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#30d158] opacity-75" /><span className="inline-flex h-2 w-2 rounded-full bg-[#30d158]" /></span>
+              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.25em] text-[#30d158]">ONLINE PLAYERS</span>
+              {onlinePlayers.length > 0 && <span className="font-mono text-[10px] text-[#30d158]/50">({onlinePlayers.length})</span>}
+              <div className="h-px flex-1 bg-[#30d158]/15" />
+            </div>
+            {onlinePlayers.length === 0 ? (
+              <p className="py-4 text-center font-mono text-xs text-white/30">No other players online right now</p>
+            ) : (
+              <>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {onlinePlayers.map((p) => (
+                  {(worldExpanded ? onlinePlayers : onlinePlayers.slice(0, 5)).map((p) => (
                     <div key={p.id} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <span className={`h-2 w-2 rounded-full ${p.in_battle ? "bg-[#ff9f0a]" : "bg-[#30d158]"}`} />
                         <span className="font-mono text-xs md:text-sm font-semibold text-white">{p.username}</span>
                         {p.in_battle && <span className="font-mono text-[9px] uppercase text-[#ff9f0a]/60">in battle</span>}
                       </div>
-                      {!p.in_battle && (
+                      {p.in_battle ? null : strategies.length === 0 ? (
+                        <span className="font-mono text-[9px] text-white/25">need strategy</span>
+                      ) : (
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                          disabled={challengeSent === p.id}
+                          disabled={!!challengeSent}
                           onClick={() => {
                             const pid = playerName;
                             const alloc = (strategies[favoriteStrategyIndex] ?? strategies[0])?.allocation ?? { equities: 25, etfs: 25, bonds: 25, commodities: 25 };
-                            presenceChallenge(pid, p.id, alloc).catch(() => {});
-                            setChallengeSent(p.id);
+                            presenceChallenge(pid, p.id, alloc).then(() => setChallengeSent(p.id)).catch((err) => {
+                              const msg = err instanceof Error ? err.message : "";
+                              if (msg.includes("pending challenge")) setChallengeSent(p.id);
+                            });
                           }}
                           className="rounded-md border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-3 py-1 font-mono text-[10px] md:text-xs font-bold uppercase text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20 disabled:opacity-40">
-                          {challengeSent === p.id ? "SENT" : "CHALLENGE"}
+                          {challengeSent === p.id ? "SENT" : challengeSent ? "PENDING" : "CHALLENGE"}
                         </motion.button>
                       )}
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {onlinePlayers.length > 5 && (
+                  <button onClick={() => setWorldExpanded(!worldExpanded)}
+                    className="mt-3 w-full rounded-lg border border-[#30d158]/15 py-2 font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#30d158]/50 transition-all hover:bg-[#30d158]/05 hover:text-[#30d158]/80">
+                    {worldExpanded ? "SHOW LESS" : `SHOW ALL (${onlinePlayers.length})`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Strategy grid */}
       {strategies.length === 0 ? (

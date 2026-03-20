@@ -633,6 +633,13 @@ def quickmatch(req: BattleCreate):
         if req.allocation:
             room.player2.portfolio = req.allocation
         seed = _rnd.randint(0, 2**31)
+        # Mark both players as in_battle
+        p1 = _online_players.get(room.player1.player_id)
+        p2 = _online_players.get(req.player_id)
+        if p1:
+            p1["in_battle"] = True
+        if p2:
+            p2["in_battle"] = True
         return {
             "room_id": room.room_id,
             "status": room.status.value,
@@ -804,6 +811,10 @@ def presence_heartbeat(req: HeartbeatReq):
         opp_alloc = challenge.get("opponent_allocation")
         seed = challenge.get("seed")
         del _pending_challenges[req.player_id]
+        # Mark as in_battle
+        player = _online_players.get(req.player_id)
+        if player:
+            player["in_battle"] = True
         return {"go_to_battle": room_id, "opponent_allocation": opp_alloc, "seed": seed}
     return {"ok": True}
 
@@ -833,6 +844,13 @@ def presence_challenge(req: ChallengeReq):
         raise HTTPException(404, "Player not found")
     if target.get("in_battle"):
         raise HTTPException(400, "Player is in battle")
+    if sender.get("in_battle"):
+        raise HTTPException(400, "You are already in a battle")
+    # Check if sender already has an outgoing challenge (prevent spamming multiple people)
+    for tid, ch in _pending_challenges.items():
+        if ch.get("from_id") == req.from_id and not ch.get("room_id") and time.time() - ch["ts"] < 30:
+            if tid != req.target_id:
+                raise HTTPException(400, "You already have a pending challenge")
     _pending_challenges[req.target_id] = {
         "from_id": req.from_id,
         "from_username": sender["username"],

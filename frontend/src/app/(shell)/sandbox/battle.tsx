@@ -477,7 +477,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult, opponentN
               animate={false}
               color="#00d4ff"
               color2="#ff453a"
-              height={140}
+              height={typeof window !== "undefined" && window.innerWidth >= 768 ? Math.round(window.innerHeight * 0.25) : 140}
             />
           </div>
         </div>
