@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
@@ -23,12 +23,17 @@ export default function BattleRoomPage() {
   const allocation = useGameStore((s) => s.allocation);
   const setAssetAllocation = useGameStore((s) => s.setAssetAllocation);
   const resetAllocation    = useGameStore((s) => s.resetAllocation);
+  const [hydrated, setHydrated] = useState(false);
 
-  const player = user
-    ? { id: user.id, username: user.username }
-    : playerName
-      ? { id: "guest-" + playerName.toLowerCase().replace(/\s+/g, "-"), username: playerName }
-      : null;
+  useEffect(() => { setHydrated(true); }, []);
+
+  const playerId = useMemo(() => {
+    if (user) return user.id;
+    if (playerName) return "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
+    return null;
+  }, [user, playerName]);
+
+  const playerUsername = user?.username ?? playerName ?? null;
 
   const [phase, setPhase]             = useState<BattlePhase>("waiting");
   const [opponent, setOpponent]       = useState("");
@@ -46,6 +51,8 @@ export default function BattleRoomPage() {
 
   const socketRef = useRef<ReturnType<typeof createBattleSocket> | null>(null);
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playerIdRef = useRef(playerId);
+  playerIdRef.current = playerId;
 
   const handleMessage = useCallback((msg: WsMessage) => {
     switch (msg.type) {
@@ -70,22 +77,23 @@ export default function BattleRoomPage() {
         setWinnerId(msg.winner_id as string | null);
         setP1Result(msg.p1 as Record<string, unknown>);
         setP2Result(msg.p2 as Record<string, unknown>);
-        if (player && msg.winner_id === player.id) confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        if (playerIdRef.current && msg.winner_id === playerIdRef.current) confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
         break;
       case "opponent_disconnected":
         setOpponent((p) => p + " (disconnected)");
         break;
     }
-  }, [player]);
+  }, []);
 
   useEffect(() => {
-    if (!player || !roomId) return;
+    if (!playerId || !playerUsername || !roomId) return;
     resetAllocation(); setMonths([]); setP1Values([]); setP2Values([]);
     const s = createBattleSocket(roomId, handleMessage);
     socketRef.current = s;
-    setTimeout(() => s.send({ type: "join", player_id: player.id, username: player.username }), 300);
+    setTimeout(() => s.send({ type: "join", player_id: playerId, username: playerUsername }), 300);
     return () => { s.close(); if (timerRef.current) clearInterval(timerRef.current); };
-  }, [roomId, player, handleMessage, resetAllocation]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, playerId]);
 
   useEffect(() => {
     if (phase !== "building") return;
@@ -108,11 +116,19 @@ export default function BattleRoomPage() {
   function handleSubmit() {
     if (submitted) return;
     if (ASSET_KEYS.reduce((s, k) => s + allocation[k], 0) !== 100) return;
-    socketRef.current?.send({ type: "submit_portfolio", player_id: player?.id, allocation });
+    socketRef.current?.send({ type: "submit_portfolio", player_id: playerId, allocation });
     setSubmitted(true);
   }
 
-  if (!player) {
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#bf5af2] border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!playerId || !playerUsername) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -141,7 +157,7 @@ export default function BattleRoomPage() {
       {phase === "building" && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="mb-6 flex items-center justify-between">
-            <PlayerChip name={player.username} color="#2997ff" label="You" />
+            <PlayerChip name={playerUsername} color="#2997ff" label="You" />
             <span className="text-lg font-bold text-white/20">VS</span>
             <PlayerChip name={opponent} color="#ff453a" label="Opponent" right />
           </div>
@@ -185,7 +201,7 @@ export default function BattleRoomPage() {
           <h2 className="mb-1 text-center text-xl font-bold text-white">{scenarioName}</h2>
           <p className="mb-5 text-center text-sm text-white/30">Live simulation in progress…</p>
           <div className="mb-4 flex justify-center gap-6 text-xs">
-            <Legend color="#2997ff" label={player.username} />
+            <Legend color="#2997ff" label={playerUsername} />
             <Legend color="#ff453a" label={opponent} />
           </div>
           <div className="glass rounded-2xl p-5">
@@ -206,10 +222,10 @@ export default function BattleRoomPage() {
             {winnerId ? (
               <>
                 <p className="text-xs text-white/30 mb-1">Winner</p>
-                <h2 className="text-4xl font-bold" style={{ color: winnerId === player.id ? "#2997ff" : "#ff453a" }}>
-                  {winnerId === player.id ? player.username : opponent}
+                <h2 className="text-4xl font-bold" style={{ color: winnerId === playerId ? "#2997ff" : "#ff453a" }}>
+                  {winnerId === playerId ? playerUsername : opponent}
                 </h2>
-                {winnerId === player.id && <p className="mt-2 text-2xl">🎉</p>}
+                {winnerId === playerId && <p className="mt-2 text-2xl">🎉</p>}
               </>
             ) : (
               <>
