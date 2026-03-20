@@ -356,3 +356,37 @@ export async function presenceDecline(playerId: string, fromId: string): Promise
     body: JSON.stringify({ player_id: playerId, from_id: fromId }),
   });
 }
+
+export async function presenceBattleEnd(playerId: string): Promise<void> {
+  await fetchJson("/presence/battle-end", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Guest stats & leaderboards
+// ---------------------------------------------------------------------------
+
+export async function reportResult(
+  playerName: string,
+  won: boolean,
+  returnPct: number,
+  isPvP: boolean,
+): Promise<{ iq: number; best_return: number }> {
+  return fetchJson("/guest/report-result", {
+    method: "POST",
+    body: JSON.stringify({ player_name: playerName, won, return_pct: returnPct, is_pvp: isPvP }),
+  });
+}
+
+export async function getGuestLeaderboard(): Promise<{
+  iq_leaderboard: { player_name: string; iq: number }[];
+  highscore_leaderboard: { player_name: string; best_return: number }[];
+}> {
+  return fetchJson("/guest/leaderboard");
+}
+
+export async function getGuestStats(playerName: string): Promise<{ player_name: string; iq: number }> {
+  return fetchJson(`/guest/stats/${encodeURIComponent(playerName)}`);
+}

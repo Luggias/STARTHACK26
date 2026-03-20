@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername } from "@/lib/api";
+import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats } from "@/lib/api";
 import type { OnlinePlayer } from "@/lib/ws";
 
 /* ══════════════════════════════════════════════
@@ -209,6 +209,8 @@ export default function SandboxPage() {
   const setPlayerName    = useGameStore((s) => s.setPlayerName);
   const battleRecords    = useGameStore((s) => s.battleRecords);
   const addBattleRecord  = useGameStore((s) => s.addBattleRecord);
+  const favoriteStrategyIndex = useGameStore((s) => s.favoriteStrategyIndex);
+  const setFavoriteStrategy   = useGameStore((s) => s.setFavoriteStrategy);
 
   const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
   const [pvpOpponent, setPvpOpponent]   = useState<string | null>(null);
@@ -217,6 +219,9 @@ export default function SandboxPage() {
   const [nameInput, setNameInput]       = useState("");
   const [nameError, setNameError]       = useState("");
   const [nameClaiming, setNameClaiming] = useState(false);
+  const [localIq, setLocalIq]           = useState(0);
+  const [iqLeaderboard, setIqLeaderboard]               = useState<{ player_name: string; iq: number }[]>([]);
+  const [highscoreLeaderboard, setHighscoreLeaderboard] = useState<{ player_name: string; best_return: number }[]>([]);
 
   const handleClaimName = async () => {
     const name = nameInput.trim();
@@ -265,9 +270,10 @@ export default function SandboxPage() {
         const hb = await presenceHeartbeat(playerId, playerName);
         if (!active) return;
         if (hb.go_to_battle) {
-            // Challenge was accepted — open battle with first strategy
+            // Challenge was accepted — open battle with favorite strategy
             const opName = onlinePlayers.find(p => p.id === challengeSent)?.username ?? "Opponent";
-            const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+            const favIdx = useGameStore.getState().favoriteStrategyIndex;
+            const strat = strategies[favIdx] ?? strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
             setPvpOpponent(opName);
             if (hb.opponent_allocation) setPvpOpponentAlloc(hb.opponent_allocation);
             if (hb.seed) setPvpSeed(hb.seed);
@@ -293,6 +299,19 @@ export default function SandboxPage() {
     const interval = setInterval(poll, 3000);
     return () => { active = false; clearInterval(interval); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerName]);
+
+  /* Fetch IQ stats + leaderboard */
+  useEffect(() => {
+    if (!playerName) return;
+    let active = true;
+    const fetchAll = () => {
+      getGuestStats(playerName).then(r => { if (active) setLocalIq(r.iq); }).catch(() => {});
+      getGuestLeaderboard().then(r => { if (active) { setIqLeaderboard(r.iq_leaderboard); setHighscoreLeaderboard(r.highscore_leaderboard); } }).catch(() => {});
+    };
+    fetchAll();
+    const iv = setInterval(fetchAll, 10000);
+    return () => { active = false; clearInterval(iv); };
   }, [playerName]);
 
   const startMatchmaking = useCallback(async (strategy: Strategy) => {
@@ -627,7 +646,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={async () => {
                     const pid = playerName;
-                    const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+                    const strat = strategies[favoriteStrategyIndex] ?? strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
                     try {
                       const resp = await presenceAccept(pid, battleRequest.from_id, strat.allocation);
                       if (resp.opponent_allocation) setPvpOpponentAlloc(resp.opponent_allocation);
@@ -661,7 +680,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <BattleArena
             strategy={battleTarget}
             playerName={playerName}
-            onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); }}
+            onClose={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); presenceBattleEnd(playerName).catch(() => {}); }}
             onResult={(won, returnPct, cpuReturnPct) => {
               addBattleRecord({
                 playerName,
@@ -671,14 +690,31 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 won,
                 date: new Date().toLocaleDateString(),
               });
+              const isPvP = !!pvpOpponent;
+              reportResult(playerName, won, returnPct, isPvP).then(r => setLocalIq(r.iq)).catch(() => {});
             }}
             opponentName={pvpOpponent ?? undefined}
             opponentAllocation={pvpOpponentAlloc ?? undefined}
             seed={pvpSeed ?? undefined}
-            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); }}
+            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); setPvpOpponentAlloc(null); setPvpSeed(null); presenceBattleEnd(playerName).catch(() => {}); }}
           />
         )}
       </AnimatePresence>
+
+      {/* Profile bar */}
+      {playerName && (
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2997ff] font-mono text-sm font-bold text-white">
+              {playerName[0]?.toUpperCase()}
+            </div>
+            <div>
+              <p className="font-mono text-sm font-bold text-white">{playerName}</p>
+              <p className="font-mono text-[10px] text-[#ff9f0a]">{localIq} IQ</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
@@ -729,7 +765,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                           disabled={challengeSent === p.id}
                           onClick={() => {
                             const pid = playerName;
-                            const alloc = strategies[0]?.allocation ?? { equities: 25, etfs: 25, bonds: 25, commodities: 25 };
+                            const alloc = (strategies[favoriteStrategyIndex] ?? strategies[0])?.allocation ?? { equities: 25, etfs: 25, bonds: 25, commodities: 25 };
                             presenceChallenge(pid, p.id, alloc).catch(() => {});
                             setChallengeSent(p.id);
                           }}
@@ -766,12 +802,59 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
               onEdit={() => openBuilder(i)}
               onTest={() => openTest(s, i)}
               onBattle={() => startMatchmaking(s)}
+              onRename={(name) => updateStrategy(i, { ...s, name })}
+              isFavorite={i === favoriteStrategyIndex}
+              onToggleFavorite={() => setFavoriteStrategy(i)}
+              isOnlyStrategy={strategies.length === 1}
             />
           ))}
         </div>
       )}
 
-      {/* ── Leaderboard ── */}
+      {/* ── Global Leaderboards ── */}
+      {(iqLeaderboard.length > 0 || highscoreLeaderboard.length > 0) && (
+        <div className="mt-12">
+          <div className="mb-4 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#bf5af2]/20" />
+            <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-[#bf5af2]">◈ GLOBAL LEADERBOARDS</span>
+            <div className="h-px flex-1 bg-[#bf5af2]/20" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* IQ Leaderboard */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-[#ff9f0a]">IQ LEADERBOARD</p>
+              {iqLeaderboard.length === 0 ? (
+                <p className="font-mono text-xs text-white/25">No data yet</p>
+              ) : iqLeaderboard.map((e, i) => (
+                <div key={e.player_name} className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
+                    <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#ff9f0a]" : "text-white/70"}`}>{e.player_name}</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-[#ff9f0a]">{e.iq} IQ</span>
+                </div>
+              ))}
+            </div>
+            {/* Highscore Leaderboard */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-[#30d158]">HIGHSCORE</p>
+              {highscoreLeaderboard.length === 0 ? (
+                <p className="font-mono text-xs text-white/25">No data yet</p>
+              ) : highscoreLeaderboard.map((e, i) => (
+                <div key={e.player_name} className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-white/30 w-4">#{i + 1}</span>
+                    <span className={`font-mono text-xs font-semibold ${e.player_name === playerName ? "text-[#30d158]" : "text-white/70"}`}>{e.player_name}</span>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-[#30d158]">+{e.best_return.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Battle Records ── */}
       {battleRecords.length > 0 && (
         <div className="mt-12">
           <div className="mb-4 flex items-center gap-4">
@@ -1229,22 +1312,68 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
 }
 
 /* ─── Strategy card ─── */
-function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle }: {
+function StrategyCard({ strategy, onDelete, onEdit, onTest, onBattle, onRename, isFavorite, onToggleFavorite, isOnlyStrategy }: {
   strategy: Strategy;
   onDelete: () => void;
   onEdit: () => void;
   onTest: () => void;
   onBattle: () => void;
+  onRename: (name: string) => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  isOnlyStrategy: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState(strategy.name);
   const entries = Object.entries(strategy.allocation).sort(([, a], [, b]) => b - a);
   const ret     = strategy.result?.total_return ?? null;
   const isPos   = ret === null || ret >= 0;
 
+  const commitRename = () => {
+    const trimmed = newName.trim();
+    if (trimmed && trimmed !== strategy.name) onRename(trimmed);
+    else setNewName(strategy.name);
+    setEditing(false);
+  };
+
   return (
-    <div className="flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 md:p-6 transition-all hover:border-white/10">
+    <div className="relative flex flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 md:p-6 transition-all hover:border-white/10">
+      {/* Favorite star */}
+      <button
+        onClick={onToggleFavorite}
+        disabled={isOnlyStrategy}
+        className="absolute top-3 right-3 text-lg transition-all hover:scale-110 disabled:cursor-default"
+        title={isFavorite ? "Favorite strategy" : "Set as favorite"}
+      >
+        {isFavorite ? (
+          <span style={{ color: "#FFD700" }}>&#9733;</span>
+        ) : (
+          <span className="text-white/20 hover:text-white/40">&#9734;</span>
+        )}
+      </button>
+
       {/* Name + return */}
-      <div className="mb-4 flex items-start justify-between gap-2">
-        <p className="font-mono text-sm md:text-base font-bold text-white">{strategy.name}</p>
+      <div className="mb-4 flex items-start justify-between gap-2 pr-6">
+        {editing ? (
+          <input
+            autoFocus
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setNewName(strategy.name); setEditing(false); } }}
+            onBlur={commitRename}
+            maxLength={30}
+            className="flex-1 rounded-md border border-[#00d4ff]/40 bg-white/[0.05] px-2 py-1 font-mono text-sm text-white outline-none focus:border-[#00d4ff]/70"
+          />
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <p className="font-mono text-sm md:text-base font-bold text-white">{strategy.name}</p>
+            <button onClick={() => { setNewName(strategy.name); setEditing(true); }} className="text-white/25 hover:text-white/60 transition-colors" title="Rename">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              </svg>
+            </button>
+          </div>
+        )}
         {ret !== null && (
           <p className="font-mono text-sm md:text-base font-bold tabular-nums flex-shrink-0" style={{ color: isPos ? "#30d158" : "#ff453a" }}>
             {isPos ? "+" : ""}{ret.toFixed(1)}%

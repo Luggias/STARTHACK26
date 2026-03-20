@@ -70,6 +70,8 @@ _mem_users: dict[str, dict] = {}
 _mem_strategies: dict[str, list] = {}
 # user_id -> longterm portfolio
 _mem_portfolios: dict[str, dict] = {}
+# player_name -> {"iq": int, "best_return": float}
+_guest_stats: dict[str, dict] = {}
 
 
 def _db_create_user(row: dict) -> dict:
@@ -909,6 +911,57 @@ class DeclineReq(BaseModel):
 def presence_decline(req: DeclineReq):
     _pending_challenges.pop(req.player_id, None)
     return {"ok": True}
+
+
+class BattleEndReq(BaseModel):
+    player_id: str
+
+
+@app.post("/presence/battle-end")
+def presence_battle_end(req: BattleEndReq):
+    player = _online_players.get(req.player_id)
+    if player:
+        player["in_battle"] = False
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Guest stats & leaderboards (in-memory, no auth)
+# ---------------------------------------------------------------------------
+
+class ReportResultReq(BaseModel):
+    player_name: str
+    won: bool
+    return_pct: float
+    is_pvp: bool
+
+
+@app.post("/guest/report-result")
+def guest_report_result(req: ReportResultReq):
+    stats = _guest_stats.setdefault(req.player_name, {"iq": 0, "best_return": -999.0})
+    if req.is_pvp:
+        stats["iq"] = max(0, stats["iq"] + (50 if req.won else 25))
+    if req.return_pct > stats["best_return"]:
+        stats["best_return"] = req.return_pct
+    return {"iq": stats["iq"], "best_return": stats["best_return"]}
+
+
+@app.get("/guest/leaderboard")
+def guest_leaderboard():
+    entries = [{"player_name": k, **v} for k, v in _guest_stats.items()]
+    iq_top5 = sorted(entries, key=lambda e: e["iq"], reverse=True)[:5]
+    highscore_top5 = sorted(
+        [e for e in entries if e["best_return"] > -999],
+        key=lambda e: e["best_return"],
+        reverse=True,
+    )[:5]
+    return {"iq_leaderboard": iq_top5, "highscore_leaderboard": highscore_top5}
+
+
+@app.get("/guest/stats/{player_name}")
+def guest_stats(player_name: str):
+    stats = _guest_stats.get(player_name, {"iq": 0, "best_return": -999.0})
+    return {"player_name": player_name, "iq": stats["iq"]}
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,10 @@ interface GameState {
   updateStrategy: (index: number, s: Strategy) => void;
   deleteStrategy: (index: number) => void;
 
+  /* Favorite strategy index */
+  favoriteStrategyIndex: number;
+  setFavoriteStrategy: (index: number) => void;
+
   /* Battle records (local leaderboard) */
   battleRecords: BattleRecord[];
   addBattleRecord: (r: BattleRecord) => void;
@@ -86,7 +90,7 @@ export const useGameStore = create<GameState>()(
       token: null,
       setUser: (u) => set({ user: u }),
       setToken: (t) => set({ token: t }),
-      logout: () => set({ user: null, token: null, unlockedAssets: ["stocks"], strategies: [], longtermPortfolio: null }),
+      logout: () => set({ user: null, token: null, unlockedAssets: ["stocks"], strategies: [], longtermPortfolio: null, favoriteStrategyIndex: 0 }),
 
       playerName: "",
       setPlayerName: (n) => set({ playerName: n }),
@@ -109,7 +113,17 @@ export const useGameStore = create<GameState>()(
       strategies: [],
       addStrategy: (s) => set((state) => ({ strategies: [s, ...state.strategies].slice(0, 20) })),
       updateStrategy: (index, s) => set((state) => ({ strategies: state.strategies.map((st, i) => i === index ? s : st) })),
-      deleteStrategy: (index) => set((state) => ({ strategies: state.strategies.filter((_, i) => i !== index) })),
+      deleteStrategy: (index) => set((state) => {
+        const newStrategies = state.strategies.filter((_, i) => i !== index);
+        let fav = state.favoriteStrategyIndex;
+        if (index === fav) fav = 0;
+        else if (index < fav) fav = Math.max(0, fav - 1);
+        if (fav >= newStrategies.length) fav = Math.max(0, newStrategies.length - 1);
+        return { strategies: newStrategies, favoriteStrategyIndex: fav };
+      }),
+
+      favoriteStrategyIndex: 0,
+      setFavoriteStrategy: (index) => set({ favoriteStrategyIndex: index }),
 
       battleRecords: [],
       addBattleRecord: (r) => set((state) => ({ battleRecords: [r, ...state.battleRecords].slice(0, 20) })),
@@ -119,9 +133,8 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "cmiyc-game-store",
-      version: 2,
+      version: 3,
       migrate: () => ({
-        // v2: wipe all old data — force fresh login with unique username
         user: null,
         token: null,
         playerName: "",
@@ -129,6 +142,7 @@ export const useGameStore = create<GameState>()(
         strategies: [],
         battleRecords: [],
         longtermPortfolio: null,
+        favoriteStrategyIndex: 0,
       }),
       partialize: (state) => ({
         user: state.user,
@@ -138,6 +152,7 @@ export const useGameStore = create<GameState>()(
         strategies: state.strategies,
         battleRecords: state.battleRecords,
         longtermPortfolio: state.longtermPortfolio,
+        favoriteStrategyIndex: state.favoriteStrategyIndex,
       }),
     },
   ),
