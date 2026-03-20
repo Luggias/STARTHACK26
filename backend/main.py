@@ -808,6 +808,7 @@ def _clean_stale_players():
 class HeartbeatReq(BaseModel):
     player_id: str
     username: str
+    has_strategy: bool = False
 
 
 @app.post("/presence/heartbeat")
@@ -817,6 +818,7 @@ def presence_heartbeat(req: HeartbeatReq):
         "username": req.username,
         "last_seen": time.time(),
         "in_battle": _online_players.get(req.player_id, {}).get("in_battle", False),
+        "has_strategy": req.has_strategy,
     }
     # Check for incoming challenge
     challenge = _pending_challenges.get(req.player_id)
@@ -840,7 +842,7 @@ def presence_online():
     _clean_stale_players()
     return {
         "players": [
-            {"id": pid, "username": info["username"], "in_battle": info["in_battle"]}
+            {"id": pid, "username": info["username"], "in_battle": info["in_battle"], "has_strategy": info.get("has_strategy", False)}
             for pid, info in _online_players.items()
         ]
     }

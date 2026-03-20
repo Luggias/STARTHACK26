@@ -60,4 +60,4 @@ export function createBattleSocket(
   return { send, close, ws };
 }
 
-export type OnlinePlayer = { id: string; username: string; in_battle: boolean };
+export type OnlinePlayer = { id: string; username: string; in_battle: boolean; has_strategy: boolean };

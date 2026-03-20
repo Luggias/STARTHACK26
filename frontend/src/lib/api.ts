@@ -313,15 +313,16 @@ export async function releaseUsername(username: string): Promise<void> {
 export async function presenceHeartbeat(
   playerId: string,
   username: string,
+  hasStrategy = false,
 ): Promise<{ ok?: boolean; go_to_battle?: string; opponent_allocation?: Record<string, number> | null; seed?: number | null; opponent_name?: string }> {
   return fetchJson("/presence/heartbeat", {
     method: "POST",
-    body: JSON.stringify({ player_id: playerId, username }),
+    body: JSON.stringify({ player_id: playerId, username, has_strategy: hasStrategy }),
   });
 }
 
 export async function presenceOnline(): Promise<{
-  players: { id: string; username: string; in_battle: boolean }[];
+  players: { id: string; username: string; in_battle: boolean; has_strategy: boolean }[];
 }> {
   return fetchJson("/presence/online");
 }

@@ -299,7 +299,8 @@ export default function SandboxPage() {
       if (!active) return;
       try {
         // Heartbeat — also checks if we got redirected to a battle
-        const hb = await presenceHeartbeat(playerId, playerName);
+        const store = useGameStore.getState();
+        const hb = await presenceHeartbeat(playerId, playerName, store.strategies.length > 0);
         if (!active) return;
         if (hb.go_to_battle) {
             // Challenge was accepted — open battle with favorite strategy
@@ -848,7 +849,9 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                         <span className="font-mono text-xs md:text-sm font-semibold text-white">{p.username}</span>
                         {p.in_battle && <span className="font-mono text-[9px] uppercase text-[#ff9f0a]/60">in battle</span>}
                       </div>
-                      {p.in_battle ? null : strategies.length === 0 ? (
+                      {p.in_battle ? null : !p.has_strategy ? (
+                        <span className="font-mono text-[9px] text-white/25">still has to create a strategy</span>
+                      ) : strategies.length === 0 ? (
                         <span className="font-mono text-[9px] text-white/25">create a strategy first</span>
                       ) : (
                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
