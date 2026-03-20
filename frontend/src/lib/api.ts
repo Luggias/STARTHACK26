@@ -264,6 +264,10 @@ export async function getBattle(roomId: string) {
   }>(`/battles/${roomId}`);
 }
 
+export async function cancelBattle(roomId: string): Promise<{ ok: boolean }> {
+  return fetchJson(`/battles/${roomId}`, { method: "DELETE" });
+}
+
 // ---------------------------------------------------------------------------
 // Clans
 // ---------------------------------------------------------------------------

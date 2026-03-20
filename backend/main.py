@@ -682,6 +682,17 @@ def quickmatch(req: BattleCreate):
     }
 
 
+@app.delete("/battles/{room_id}")
+def cancel_battle(room_id: str):
+    """Remove a waiting room (used when a player cancels matchmaking)."""
+    from battle import rooms, RoomStatus
+    room = rooms.get(room_id)
+    if room and room.status == RoomStatus.WAITING and not room.is_full():
+        del rooms[room_id]
+        return {"ok": True}
+    return {"ok": False}
+
+
 @app.get("/battles/open")
 def find_open_battle():
     room = find_open_room()

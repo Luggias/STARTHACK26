@@ -8,7 +8,7 @@ import { ASSET_CLASSES, ASSET_CLASS_KEYS } from "@/lib/constants";
 import type { AssetClassKey } from "@/lib/constants";
 import type { Strategy } from "@/lib/types";
 import { BattleArena } from "./battle";
-import { quickmatch, getBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats, getGuestBattles, syncGuestStrategies, getGuestStrategies } from "@/lib/api";
+import { quickmatch, getBattle, cancelBattle, presenceHeartbeat, presenceOnline, presenceChallenge, presenceGetChallenges, presenceAccept, presenceDecline, claimUsername, presenceBattleEnd, reportResult, getGuestLeaderboard, getGuestStats, getGuestBattles, syncGuestStrategies, getGuestStrategies } from "@/lib/api";
 import type { GuestBattleRecord } from "@/lib/api";
 import type { OnlinePlayer } from "@/lib/ws";
 
@@ -282,6 +282,7 @@ export default function SandboxPage() {
   const [matchTimer, setMatchTimer]   = useState(15);
   const [showBotOption, setShowBotOption] = useState(false);
   const matchCancelled = useRef(false);
+  const matchRoomId = useRef<string | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Presence / online players (REST polling) */
@@ -384,6 +385,7 @@ export default function SandboxPage() {
     setMatchTimer(30);
     setShowBotOption(false);
     matchCancelled.current = false;
+    matchRoomId.current = null;
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
     botTimerRef.current = setTimeout(() => { if (!matchCancelled.current) setShowBotOption(true); }, 5000);
 
@@ -396,14 +398,13 @@ export default function SandboxPage() {
       const elapsed = Math.floor((Date.now() - start) / 1000);
       setMatchTimer(Math.max(0, 30 - elapsed));
 
+      // Show "not found" after 30s but keep polling — opponent may still join
       if (elapsed >= 30) {
         setMatchStatus("not_found");
-        return;
       }
 
       try {
         if (!roomId) {
-          // First call: try to join or create a room
           const result = await quickmatch(playerId, playerName, strategy.allocation);
           if (matchCancelled.current) return;
 
@@ -416,11 +417,10 @@ export default function SandboxPage() {
             return;
           }
 
-          // Created a room — now poll for opponent
           roomId = result.room_id;
+          matchRoomId.current = roomId;
           setMatchStatus("waiting");
         } else {
-          // Poll: check if someone joined our room
           const data = await getBattle(roomId);
           if (matchCancelled.current) return;
           if (data.player2) {
@@ -441,6 +441,10 @@ export default function SandboxPage() {
   function cancelMatchmaking() {
     matchCancelled.current = true;
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    if (matchRoomId.current) {
+      cancelBattle(matchRoomId.current).catch(() => {});
+      matchRoomId.current = null;
+    }
     setMatchmaking(null);
   }
 
