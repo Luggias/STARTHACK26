@@ -90,7 +90,7 @@ export default function BattleRoomPage() {
     resetAllocation(); setMonths([]); setP1Values([]); setP2Values([]);
     const s = createBattleSocket(roomId, handleMessage);
     socketRef.current = s;
-    setTimeout(() => s.send({ type: "join", player_id: playerId, username: playerUsername }), 300);
+    setTimeout(() => s.send({ type: "join", player_id: playerId, username: playerUsername }), 100);
     return () => { s.close(); if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, playerId]);
@@ -147,9 +147,7 @@ export default function BattleRoomPage() {
       {phase === "waiting" && (
         <motion.div className="flex min-h-[60vh] flex-col items-center justify-center text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="mb-6 h-10 w-10 animate-spin rounded-full border-2 border-[#bf5af2] border-t-transparent" />
-          <h2 className="text-xl font-semibold text-white">Waiting for opponent…</h2>
-          <p className="mt-2 text-sm text-white/30">Room <span className="font-mono-data text-white/50">{roomId}</span></p>
-          <p className="mt-1 text-xs text-white/20">Share this URL to invite a friend</p>
+          <h2 className="text-xl font-semibold text-white">Connecting…</h2>
         </motion.div>
       )}
 
