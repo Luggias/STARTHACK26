@@ -15,7 +15,7 @@ interface GameState {
   playerName: string;
   setPlayerName: (n: string) => void;
 
-  /* Session auth (not persisted — must re-login each session) */
+  /* Session auth (persisted so server data loads across devices) */
   authenticated: boolean;
   setAuthenticated: (v: boolean) => void;
 
@@ -147,11 +147,12 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "cmiyc-game-store",
-      version: 5,
+      version: 6,
       migrate: () => ({
         user: null,
         token: null,
         playerName: "",
+        authenticated: false,
         unlockedAssets: ["stocks"],
         strategies: [],
         battleRecords: [],
@@ -163,6 +164,7 @@ export const useGameStore = create<GameState>()(
         user: state.user,
         token: state.token,
         playerName: state.playerName,
+        authenticated: state.authenticated,
         unlockedAssets: state.unlockedAssets,
         strategies: state.strategies,
         battleRecords: state.battleRecords,
