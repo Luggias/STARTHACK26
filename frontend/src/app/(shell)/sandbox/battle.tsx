@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Strategy } from "@/lib/types";
+import type { Strategy, Allocation } from "@/lib/types";
 import { BattleStage } from "./battle-stage";
+import { getAiInsight } from "@/lib/api";
+import PerformanceChart from "@/components/performance-chart";
+import AiInsight from "@/components/ai-insight";
 
 /* ── Simulation ── */
 const SIM: Record<string, { mu: number; sigma: number }> = {
@@ -172,9 +175,18 @@ export interface BattleArenaProps {
   playerName: string;
   onClose: () => void;
   onResult: (won: boolean, returnPct: number, cpuReturnPct: number) => void;
+  /** PvP mode: opponent's name and allocation */
+  opponentName?: string;
+  opponentAllocation?: Record<string, number>;
+  /** Called when user wants to play again */
+  onPlayAgain?: () => void;
 }
 
-export function BattleArena({ strategy, playerName, onClose, onResult }: BattleArenaProps) {
+export function BattleArena({ strategy, playerName, onClose, onResult, opponentName, opponentAllocation, onPlayAgain }: BattleArenaProps) {
+
+  const isPvP = !!opponentName;
+  const enemyName = opponentName ?? "A.I. FUND";
+  const enemyAlloc = opponentAllocation ?? CPU_ALLOC;
 
   /* Phase & display state */
   const [phase, setPhase]           = useState<"countdown" | "fighting" | "paused" | "done">("countdown");
@@ -185,6 +197,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
   const [pendingEv, setPendingEv]   = useState<BEv | null>(null);
   const [reactTimer, setReactTimer] = useState(6);
   const [won, setWon]               = useState(false);
+  const [aiInsight, setAiInsight]   = useState("");
 
   /* Combat animation state */
   const [pAttack, setPAttack]   = useState(false);
@@ -272,7 +285,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
         return;
       }
       s.pPV = stepPV(s.pPV, strategy.allocation, s.pRNG.randn);
-      s.cPV = stepPV(s.cPV, CPU_ALLOC, s.cRNG.randn);
+      s.cPV = stepPV(s.cPV, enemyAlloc, s.cRNG.randn);
       s.month = nextM;
       setPH(h => [...h, s.pPV]);
       setCH(h => [...h, s.cPV]);
@@ -291,6 +304,19 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
     return () => clearInterval(t);
   }, [phase]);
 
+  /* AI insight on battle end */
+  useEffect(() => {
+    if (phase !== "done") return;
+    const pReturn = ((pH[pH.length - 1] - 10000) / 10000) * 100;
+    const cReturn = ((cH[cH.length - 1] - 10000) / 10000) * 100;
+    getAiInsight(
+      strategy.allocation as unknown as Allocation, enemyAlloc as unknown as Allocation,
+      "battle_arena",
+      { p1_return: pReturn, p1_sharpe: 0, p2_return: cReturn, p2_sharpe: 0 },
+    ).then(setAiInsight).catch(() => setAiInsight("Great battle! Diversification and risk management are key to long-term success."));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   /* Reaction timer */
   useEffect(() => {
     if (phase !== "paused") return;
@@ -305,7 +331,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
     const shocks = s.pendingShocks ?? {};
     const prevP = s.pPV; const prevC = s.cPV;
     s.pPV = stepPV(s.pPV, strategy.allocation, s.pRNG.randn, shocks, mult);
-    s.cPV = stepPV(s.cPV, CPU_ALLOC, s.cRNG.randn, shocks, 1.0);
+    s.cPV = stepPV(s.cPV, enemyAlloc, s.cRNG.randn, shocks, 1.0);
     s.month++; s.eventIdx++; s.pendingShocks = null;
     if (s.pPV < prevP) { setPHit(true); setTimeout(() => setPHit(false), 600); }
     if (s.cPV < prevC) { setCHit(true); setTimeout(() => setCHit(false), 600); }
@@ -365,7 +391,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
               </div>
               <span className="font-mono text-sm md:text-lg text-white/20">VS</span>
               <div>
-                <p className="font-mono text-xs md:text-base font-bold text-[#ff453a]">A.I. FUND</p>
+                <p className="font-mono text-xs md:text-base font-bold text-[#ff453a]">{enemyName}</p>
                 <p className="font-mono text-[10px] md:text-xs text-[#ff453a]/50">THE KNIGHT</p>
               </div>
             </div>
@@ -408,30 +434,61 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
       {/* ── Victory / Defeat ── */}
       <AnimatePresence>
         {phase === "done" && (
-          <motion.div className="absolute inset-0 z-30 flex flex-col items-center justify-center pb-48 md:pb-56"
+          <motion.div className="absolute inset-0 z-30 flex flex-col items-center overflow-y-auto"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ background: "rgba(6,6,14,0.85)" }}>
-            <motion.p className="font-mono font-bold leading-none"
-              style={{ fontSize: "clamp(4rem,12vw,8rem)", color: won ? "#30d158" : "#ff453a", textShadow: `0 0 80px ${won ? "#30d158" : "#ff453a"}` }}
-              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200 }}>
-              {won ? "VICTORY" : "DEFEAT"}
-            </motion.p>
-            <p className="mt-3 font-mono text-sm md:text-base text-white/45">{playerName} · {strategy.name}</p>
-            <div className="mt-8 md:mt-10 flex gap-8 md:gap-12">
-              <div className="text-center">
-                <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#00d4ff]/55">YOUR RETURN</p>
-                <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</p>
+            style={{ background: "rgba(6,6,14,0.92)" }}>
+            <div className="flex flex-col items-center px-6 py-10 md:py-14 w-full max-w-lg">
+              <motion.p className="font-mono font-bold leading-none"
+                style={{ fontSize: "clamp(3.5rem,10vw,6rem)", color: won ? "#30d158" : "#ff453a", textShadow: `0 0 80px ${won ? "#30d158" : "#ff453a"}` }}
+                initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200 }}>
+                {won ? "VICTORY" : "DEFEAT"}
+              </motion.p>
+              <p className="mt-2 font-mono text-sm md:text-base text-white/45">{playerName} · {strategy.name}</p>
+              <div className="mt-6 md:mt-8 flex gap-8 md:gap-12">
+                <div className="text-center">
+                  <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#00d4ff]/55">YOUR RETURN</p>
+                  <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: pRet >= 0 ? "#30d158" : "#ff453a" }}>{pRet >= 0 ? "+" : ""}{pRet.toFixed(1)}%</p>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div className="text-center">
+                  <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#ff453a]/55">{enemyName}</p>
+                  <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</p>
+                </div>
               </div>
-              <div className="w-px bg-white/10" />
-              <div className="text-center">
-                <p className="font-mono text-[10px] md:text-xs uppercase tracking-widest text-[#ff453a]/55">A.I. RETURN</p>
-                <p className="font-mono text-2xl md:text-3xl font-bold" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</p>
+
+              {/* Chart */}
+              <div className="mt-6 w-full rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                <PerformanceChart
+                  months={pH.map((_, i) => `M${i}`)}
+                  values={pH}
+                  values2={cH}
+                  animate={false}
+                  color="#00d4ff"
+                  color2="#ff453a"
+                />
+              </div>
+
+              {/* AI Insight */}
+              {aiInsight && (
+                <div className="mt-4 w-full">
+                  <AiInsight text={aiInsight} />
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="mt-6 flex gap-3">
+                {onPlayAgain && (
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onPlayAgain}
+                    className="rounded-xl border border-[#ff9f0a]/40 bg-[#ff9f0a]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#ff9f0a] transition-all hover:bg-[#ff9f0a]/20">
+                    PLAY AGAIN
+                  </motion.button>
+                )}
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
+                  className="rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
+                  RETURN TO SANDBOX
+                </motion.button>
               </div>
             </div>
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={onClose}
-              className="mt-10 rounded-xl border border-[#00d4ff]/40 bg-[#00d4ff]/10 px-8 py-3 md:px-10 md:py-4 font-mono text-sm md:text-base font-bold uppercase tracking-widest text-[#00d4ff] transition-all hover:bg-[#00d4ff]/20">
-              RETURN TO SANDBOX
-            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -472,7 +529,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
           <div className="mb-1 md:mb-2 flex items-center justify-between">
             <span className="font-mono text-sm md:text-base font-bold tabular-nums" style={{ color: cRet >= 0 ? "#30d158" : "#ff453a" }}>{cRet >= 0 ? "+" : ""}{cRet.toFixed(1)}%</span>
             <div className="text-right">
-              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">A.I. FUND</span>
+              <span className="font-mono text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#ff453a]">{enemyName}</span>
               <span className="ml-2 font-mono text-[9px] md:text-[11px] text-[#ff453a]/40">THE KNIGHT</span>
             </div>
           </div>
@@ -505,7 +562,7 @@ export function BattleArena({ strategy, playerName, onClose, onResult }: BattleA
           <div className="mb-1.5 md:mb-2.5 flex items-center justify-between">
             <div className="flex items-center gap-4 md:gap-6">
               <div className="flex items-center gap-1.5 md:gap-2"><div className="h-px w-5 md:w-6 bg-[#00d4ff]" /><span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-[#00d4ff]/60">{playerName}</span></div>
-              <div className="flex items-center gap-1.5 md:gap-2"><div className="h-px w-5 md:w-6 bg-[#ff453a]" /><span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-[#ff453a]/60">A.I. FUND</span></div>
+              <div className="flex items-center gap-1.5 md:gap-2"><div className="h-px w-5 md:w-6 bg-[#ff453a]" /><span className="font-mono text-[9px] md:text-xs uppercase tracking-widest text-[#ff453a]/60">{enemyName}</span></div>
             </div>
             <div className="flex items-center gap-1.5 md:gap-2">
               <div className="h-px w-5 md:w-6 border-t border-dashed border-white/30" />

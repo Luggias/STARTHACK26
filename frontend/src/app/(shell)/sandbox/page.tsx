@@ -211,6 +211,7 @@ export default function SandboxPage() {
   const addBattleRecord  = useGameStore((s) => s.addBattleRecord);
 
   const [battleTarget, setBattleTarget] = useState<Strategy | null>(null);
+  const [pvpOpponent, setPvpOpponent]   = useState<string | null>(null);
   const [nameInput, setNameInput]       = useState("");
 
   /* Matchmaking state */
@@ -239,7 +240,15 @@ export default function SandboxPage() {
         // Heartbeat — also checks if we got redirected to a battle
         const hb = await presenceHeartbeat(playerId, playerName);
         if (!active) return;
-        if (hb.go_to_battle) { router.push(`/battle/${hb.go_to_battle}`); return; }
+        if (hb.go_to_battle) {
+            // Challenge was accepted — open battle with first strategy
+            const opName = onlinePlayers.find(p => p.id === challengeSent)?.username ?? "Opponent";
+            const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+            setPvpOpponent(opName);
+            setBattleTarget(strat);
+            setChallengeSent(null);
+            return;
+          }
 
         // Fetch online players
         const { players } = await presenceOnline();
@@ -290,7 +299,9 @@ export default function SandboxPage() {
           if (matchCancelled.current) return;
 
           if (result.joined) {
-            router.push(`/battle/${result.room_id}`);
+            setPvpOpponent(result.opponent ?? "Opponent");
+            setBattleTarget(matchmaking);
+            setMatchmaking(null);
             return;
           }
 
@@ -302,7 +313,9 @@ export default function SandboxPage() {
           const data = await getBattle(roomId);
           if (matchCancelled.current) return;
           if (data.player2) {
-            router.push(`/battle/${roomId}`);
+            setPvpOpponent(data.player2);
+            setBattleTarget(matchmaking);
+            setMatchmaking(null);
             return;
           }
         }
@@ -583,7 +596,10 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                   onClick={async () => {
                     const pid = "guest-" + playerName.toLowerCase().replace(/\s+/g, "-");
-                    try { const r = await presenceAccept(pid, battleRequest.from_id); router.push(`/battle/${r.room_id}`); } catch {}
+                    try { await presenceAccept(pid, battleRequest.from_id); } catch {}
+                    const strat = strategies[0] ?? { name: "Default", allocation: { equities: 25, etfs: 25, bonds: 25, commodities: 25 } } as Strategy;
+                    setPvpOpponent(battleRequest.from_username);
+                    setBattleTarget(strat);
                     setBattleRequest(null);
                   }}
                   className="flex-1 rounded-lg bg-[#30d158] py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-[#3bde63]">
@@ -610,7 +626,7 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
           <BattleArena
             strategy={battleTarget}
             playerName={playerName}
-            onClose={() => setBattleTarget(null)}
+            onClose={() => { setBattleTarget(null); setPvpOpponent(null); }}
             onResult={(won, returnPct, cpuReturnPct) => {
               addBattleRecord({
                 playerName,
@@ -621,6 +637,8 @@ Give feedback in exactly two parts — no headers, no bullet points, plain text 
                 date: new Date().toLocaleDateString(),
               });
             }}
+            opponentName={pvpOpponent ?? undefined}
+            onPlayAgain={() => { setBattleTarget(null); setPvpOpponent(null); }}
           />
         )}
       </AnimatePresence>
