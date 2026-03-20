@@ -19,6 +19,10 @@ interface GameState {
   authenticated: boolean;
   setAuthenticated: (v: boolean) => void;
 
+  /* Intro seen flag (persisted) */
+  introSeen: boolean;
+  setIntroSeen: (v: boolean) => void;
+
   /* Learning progression */
   unlockedAssets: string[];
   unlockAsset: (asset: string) => void;
@@ -102,6 +106,9 @@ export const useGameStore = create<GameState>()(
       authenticated: false,
       setAuthenticated: (v) => set({ authenticated: v }),
 
+      introSeen: false,
+      setIntroSeen: (v) => set({ introSeen: v }),
+
       unlockedAssets: ["stocks"],
       unlockAsset: (asset) =>
         set((state) => ({
@@ -140,7 +147,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "cmiyc-game-store",
-      version: 4,
+      version: 5,
       migrate: () => ({
         user: null,
         token: null,
@@ -150,6 +157,7 @@ export const useGameStore = create<GameState>()(
         battleRecords: [],
         longtermPortfolio: null,
         favoriteStrategyIndex: 0,
+        introSeen: false,
       }),
       partialize: (state) => ({
         user: state.user,
@@ -160,6 +168,7 @@ export const useGameStore = create<GameState>()(
         battleRecords: state.battleRecords,
         longtermPortfolio: state.longtermPortfolio,
         favoriteStrategyIndex: state.favoriteStrategyIndex,
+        introSeen: state.introSeen,
       }),
     },
   ),

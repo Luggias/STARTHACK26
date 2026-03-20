@@ -202,6 +202,7 @@ function MiniChart({ values, color }: { values: number[]; color: string }) {
    PAGE
 ══════════════════════════════════════════════ */
 export default function SandboxPage() {
+  const router = useRouter();
   const strategies       = useGameStore((s) => s.strategies);
   const addStrategy      = useGameStore((s) => s.addStrategy);
   const updateStrategy   = useGameStore((s) => s.updateStrategy);
@@ -210,6 +211,17 @@ export default function SandboxPage() {
   const setPlayerName    = useGameStore((s) => s.setPlayerName);
   const authenticated    = useGameStore((s) => s.authenticated);
   const setAuthenticated = useGameStore((s) => s.setAuthenticated);
+
+  const introSeen = useGameStore((s) => s.introSeen);
+
+  // New users must see the intro first — redirect to landing page
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
+  useEffect(() => {
+    if (hydrated && !playerName && !introSeen) {
+      router.replace("/");
+    }
+  }, [hydrated, playerName, introSeen, router]);
   const battleRecords    = useGameStore((s) => s.battleRecords);
   const addBattleRecord  = useGameStore((s) => s.addBattleRecord);
   const favoriteStrategyIndex = useGameStore((s) => s.favoriteStrategyIndex);
@@ -265,7 +277,6 @@ export default function SandboxPage() {
   };
 
   /* Matchmaking state */
-  const router = useRouter();
   const [matchmaking, setMatchmaking] = useState<Strategy | null>(null);
   const [matchStatus, setMatchStatus] = useState<"searching" | "waiting" | "not_found">("searching");
   const [matchTimer, setMatchTimer]   = useState(15);
