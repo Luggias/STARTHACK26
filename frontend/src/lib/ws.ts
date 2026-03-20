@@ -1,6 +1,10 @@
 import type { WsMessage } from "./types";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL ??
+  (process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL.replace(/^http/, "ws")
+    : "ws://localhost:8000");
 
 type MessageHandler = (msg: WsMessage) => void;
 
