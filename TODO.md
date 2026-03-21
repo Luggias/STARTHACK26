@@ -1,4 +1,3 @@
-QR codes ausdrucken 
 game startet nicht wenn in anderem fenster
 issue ark innovation
 
@@ -10,5 +9,5 @@ Rename "Best Return" to "Highscore"
 
 
 # Mobile
-
 Increase vertical size of market-chart to approximately fit 30% of the vertical screen height.
+
