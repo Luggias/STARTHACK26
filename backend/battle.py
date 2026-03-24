@@ -181,11 +181,14 @@ async def start_building(room: BattleRoom) -> None:
     # Pick a random scenario
     room.scenario_key = random.choice(list(SCENARIOS.keys()))
 
-    # Notify both players
-    await broadcast(room, {
+    # Notify each player with the correct opponent name
+    await send_to(room.player1, {
         "type": "matched",
         "opponent": room.player2.username if room.player2 else "Unknown",
-        "opponent_for_p2": room.player1.username if room.player1 else "Unknown",
+    })
+    await send_to(room.player2, {
+        "type": "matched",
+        "opponent": room.player1.username if room.player1 else "Unknown",
     })
     await broadcast(room, {
         "type": "building",

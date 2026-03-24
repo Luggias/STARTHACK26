@@ -99,7 +99,7 @@ export default function BattleRoomPage() {
   useEffect(() => {
     if (phase !== "building") return;
     timerRef.current = setInterval(() => {
-      setTimeLeft((p) => { if (p <= 1) { clearInterval(timerRef.current!); if (!submitted) handleSubmit(); return 0; } return p - 1; });
+      setTimeLeft((p) => { if (p <= 1) { clearInterval(timerRef.current!); if (!submitted) handleSubmit(true); return 0; } return p - 1; });
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,10 +114,13 @@ export default function BattleRoomPage() {
     ).then(setAiInsight).catch(() => setAiInsight("Great match! Diversification and risk management are key to long-term success."));
   }, [phase, p1Result, p2Result]);
 
-  function handleSubmit() {
+  function handleSubmit(auto = false) {
     if (submitted) return;
-    if (ASSET_KEYS.reduce((s, k) => s + allocation[k], 0) !== 100) return;
-    socketRef.current?.send({ type: "submit_portfolio", player_id: playerId, allocation });
+    const sum = ASSET_KEYS.reduce((s, k) => s + (allocation[k] ?? 0), 0);
+    if (!auto && sum !== 100) return;
+    const finalAllocation = sum === 100 ? allocation :
+      Object.fromEntries(ASSET_KEYS.map((k) => [k, Math.round(100 / ASSET_KEYS.length)]));
+    socketRef.current?.send({ type: "submit_portfolio", player_id: playerId, allocation: finalAllocation });
     setSubmitted(true);
   }
 
