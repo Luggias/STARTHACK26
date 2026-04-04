@@ -180,7 +180,7 @@ export default function BattleRoomPage() {
               </div>
               <motion.button
                 whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 className="mt-4 w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black hover:bg-white/90 transition-all"
               >
                 Lock In Portfolio
